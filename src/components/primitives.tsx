@@ -61,17 +61,21 @@ interface DotMatrixProps {
   warn?: boolean;
   className?: string;
   label?: string;
+  /** Empty columns between glyphs (fractional allowed). Default 1. */
+  gap?: number;
+  /** Switch dots without the fade (animation off). */
+  instant?: boolean;
 }
 
 /** 5×7 dot-matrix text. Dot diameter is 72% of the pitch; sizes scale with --u. */
-export const DotMatrix = memo(function DotMatrix({ text, pitch, ghost = true, shape = 'round', warn, className, label }: DotMatrixProps) {
-  const { cols, dots } = matrixDots(text);
+export const DotMatrix = memo(function DotMatrix({ text, pitch, ghost = true, shape = 'round', warn, className, label, gap = 1, instant }: DotMatrixProps) {
+  const { cols, dots } = matrixDots(text, gap);
   const s = 0.72;
   const style: CSSProperties = {
     width: `calc(var(--u, 1) * ${cols * pitch}px)`,
     height: `calc(var(--u, 1) * ${7 * pitch}px)`,
   };
-  const cls = ['fl-matrix', ghost ? '' : 'no-ghost', warn ? 'fl-matrix--warn' : '', prefersReducedMotion() ? 'is-instant' : '', className ?? '']
+  const cls = ['fl-matrix', ghost ? '' : 'no-ghost', warn ? 'fl-matrix--warn' : '', instant || prefersReducedMotion() ? 'is-instant' : '', className ?? '']
     .filter(Boolean)
     .join(' ');
   return (

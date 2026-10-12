@@ -1,0 +1,338 @@
+/* Clock Studio faces. Every size derives from --clock-h (digit height, already scaled by --u),
+   so all templates follow the dashboard's layout scaling. --clock-ms is the animation length,
+   --clock-gap the digit-spacing multiplier, --clock-ink the digit colour. */
+
+.fl-clockface {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  color: var(--clock-ink, var(--ink));
+}
+
+/* ---------- dot matrix: reuse the primitive, follow ink and speed ---------- */
+.fl-clockface .fl-matrix .on {
+  fill: var(--clock-ink, var(--ink));
+}
+.fl-clockface .fl-matrix circle,
+.fl-clockface .fl-matrix rect {
+  transition-duration: var(--clock-ms, 0.26s);
+}
+.fl-clockwrap:hover .fl-clockface .fl-matrix .on {
+  fill: #fff;
+}
+
+/* ---------- split flap ---------- */
+.fl-flaps {
+  --fh: var(--clock-h);
+  --fr: calc(var(--fh) * 0.055);
+  --flap-bg: #171717;
+  --flap-edge: #050505;
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--fh) * 0.06 * var(--clock-gap, 1));
+}
+.fl-flaps.is-black {
+  --flap-bg: #0b0b0b;
+  --flap-edge: #000;
+}
+.fl-flap {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: calc(var(--fh) * 0.68);
+  height: var(--fh);
+  perspective: calc(var(--fh) * 5);
+  border-radius: var(--fr);
+}
+.fl-flap__half {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  overflow: hidden;
+  background-color: var(--flap-bg);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.fl-flap__top {
+  top: 0;
+  border-radius: var(--fr) var(--fr) 0 0;
+  transform-origin: 50% 100%;
+}
+.fl-flap__bottom {
+  bottom: 0;
+  border-radius: 0 0 var(--fr) var(--fr);
+  transform-origin: 50% 0;
+}
+/* Each half shows its own half of one full-height glyph, so the two halves line up exactly. */
+.fl-flap__glyph {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 200%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: calc(var(--fh) * 0.8);
+  font-variant-numeric: tabular-nums;
+  color: var(--clock-ink, var(--ink));
+}
+.fl-flap__top .fl-flap__glyph {
+  top: 0;
+}
+.fl-flap__bottom .fl-flap__glyph {
+  bottom: 0;
+}
+/* Leaf A: old top half falls about the hinge. Leaf B: new bottom half swings down after it. */
+.fl-flap__leaf-a {
+  z-index: 2;
+  animation: fl-leaf-a calc(var(--clock-ms, 320ms) / 2) cubic-bezier(0.55, 0, 0.85, 0.35) both;
+}
+.fl-flap__leaf-b {
+  z-index: 2;
+  transform: rotateX(90deg);
+  animation: fl-leaf-b calc(var(--clock-ms, 320ms) / 2) cubic-bezier(0.15, 0.65, 0.35, 1) calc(var(--clock-ms, 320ms) / 2) both;
+}
+@keyframes fl-leaf-a {
+  from {
+    transform: rotateX(0deg);
+  }
+  to {
+    transform: rotateX(-90deg);
+  }
+}
+@keyframes fl-leaf-b {
+  from {
+    transform: rotateX(90deg);
+  }
+  to {
+    transform: rotateX(0deg);
+  }
+}
+/* Panel seam: the hinge line between the halves. */
+.fl-flaps.has-seam .fl-flap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: max(1px, calc(var(--fh) * 0.014));
+  transform: translateY(-50%);
+  background: var(--flap-edge);
+  z-index: 3;
+  pointer-events: none;
+}
+/* Shadow: card depth, soft shading on the halves, and darkening while a leaf turns. */
+.fl-flaps.has-shadow .fl-flap {
+  box-shadow:
+    0 calc(var(--fh) * 0.025) calc(var(--fh) * 0.06) rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+.fl-flaps.has-shadow .fl-flap__top {
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.03), rgba(0, 0, 0, 0.2));
+}
+.fl-flaps.has-shadow .fl-flap__bottom {
+  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.14), rgba(255, 255, 255, 0.015));
+}
+.fl-flaps.has-shadow .fl-flap__leaf-a::after,
+.fl-flaps.has-shadow .fl-flap__leaf-b::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+}
+.fl-flaps.has-shadow .fl-flap__leaf-a::after {
+  animation: fl-shade-in calc(var(--clock-ms, 320ms) / 2) ease-in both;
+}
+.fl-flaps.has-shadow .fl-flap__leaf-b::after {
+  animation: fl-shade-out calc(var(--clock-ms, 320ms) / 2) ease-out calc(var(--clock-ms, 320ms) / 2) both;
+}
+@keyframes fl-shade-in {
+  to {
+    opacity: 0.5;
+  }
+}
+@keyframes fl-shade-out {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ---------- colons (split flap + seven segment) ---------- */
+.fl-flaps__colon,
+.fl-seg7__colon {
+  display: inline-flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(var(--clock-h) * 0.24);
+  width: calc(var(--clock-h) * 0.14);
+  height: var(--clock-h);
+}
+.fl-flaps__colon i,
+.fl-seg7__colon i {
+  display: block;
+  width: calc(var(--clock-h) * 0.085);
+  height: calc(var(--clock-h) * 0.085);
+  margin: 0 auto;
+  border-radius: 50%;
+  background: var(--clock-ink, var(--ink));
+  transition: opacity 0.2s;
+}
+.fl-seg7__colon i {
+  border-radius: 1px;
+}
+.fl-flaps__colon.is-off i,
+.fl-seg7__colon.is-off i {
+  opacity: 0.12;
+}
+
+/* ---------- seven segment ---------- */
+.fl-seg7 {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--clock-h) * 0.1 * var(--clock-gap, 1));
+}
+.fl-seg7__digit {
+  display: block;
+  flex: none;
+  height: var(--clock-h);
+  width: calc(var(--clock-h) * 0.56);
+  overflow: visible;
+}
+.fl-seg7__digit path {
+  fill: var(--matrix-ghost);
+  transition: fill var(--clock-ms, 320ms) ease-out;
+}
+.fl-seg7.no-ghost .fl-seg7__digit path {
+  fill: transparent;
+}
+.fl-seg7__digit path.on,
+.fl-seg7.no-ghost .fl-seg7__digit path.on {
+  fill: var(--clock-ink, var(--ink));
+}
+
+/* ---------- terminal + minimal ---------- */
+.fl-term,
+.fl-minimal {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: pre;
+  font-variant-numeric: tabular-nums;
+  color: var(--clock-ink, var(--ink));
+}
+.fl-term {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: calc(var(--clock-h) * 0.95);
+  letter-spacing: calc((var(--clock-gap, 1) - 1) * 0.15em);
+}
+.fl-term__prompt {
+  color: var(--ink-3);
+  font-size: 0.55em;
+  margin-right: 0.4em;
+  align-self: center;
+}
+.fl-minimal {
+  font-family: 'Segoe UI Variable Display', 'Segoe UI', system-ui, sans-serif;
+  font-weight: 300;
+  font-size: calc(var(--clock-h) * 1.18);
+  line-height: 0.82;
+  letter-spacing: calc((var(--clock-gap, 1) - 1) * 0.12em - 0.02em);
+}
+.fl-textcolon {
+  transition: opacity 0.2s;
+}
+.fl-textcolon.is-off {
+  opacity: 0.15;
+}
+
+/* ---------- animation off / reduced motion ---------- */
+.fl-clockface.is-static *,
+.fl-clockface.is-static *::after {
+  transition: none !important;
+  animation: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-clockface *,
+  .fl-clockface *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ---------- Clock Studio (settings) ---------- */
+.fl-studio {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(calc(var(--u) * 200px), 1fr));
+  gap: calc(var(--u) * 10px);
+  padding: calc(var(--u) * 14px) calc(var(--u) * 28px);
+  border-bottom: 1px solid var(--rule);
+}
+.fl-studio__tile {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 10px);
+  padding: calc(var(--u) * 14px) calc(var(--u) * 8px) calc(var(--u) * 10px);
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  min-width: 0;
+  overflow: hidden;
+}
+.fl-studio__tile:hover {
+  border-color: var(--ink-3);
+}
+.fl-studio__tile.is-on {
+  border-color: var(--ink);
+}
+.fl-studio__tile:focus-visible {
+  outline: 1px dotted var(--ink);
+  outline-offset: 2px;
+}
+.fl-studio__face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(var(--u) * 64px);
+  max-width: 100%;
+}
+.fl-studio__name {
+  font-size: calc(var(--u) * 12px);
+  letter-spacing: 0.14em;
+  color: var(--ink-2);
+}
+.fl-studio__tile.is-on .fl-studio__name {
+  color: var(--ink);
+}
+.fl-studio__note {
+  padding: calc(var(--u) * 8px) calc(var(--u) * 28px) calc(var(--u) * 12px);
+  font-size: calc(var(--u) * 12px);
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule);
+}
+.fl-studio__preview {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: calc(var(--u) * 12px);
+  padding: calc(var(--u) * 36px) 0 calc(var(--u) * 14px);
+  overflow: hidden;
+}
+.fl-studio__demo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: calc(var(--u) * 8px);
+  margin-top: calc(var(--u) * 24px);
+}

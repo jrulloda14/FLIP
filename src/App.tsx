@@ -204,7 +204,7 @@ export function Dashboard() {
           </aside>
         )}
         <main className="fl-right">
-          <DigitalClock home={clock.home} clock={s.clock} pitch={pitch} onClick={() => actions.openOverlay('settings', 'CLOCK')} />
+          <DigitalClock home={clock.home} clock={s.clock} pitch={pitch} layout={layout} onClick={() => actions.openOverlay('settings', 'CLOCK')} />
           <div className="fl-side">
             {m.date && <DateDisplay home={clock.home} clock={s.clock} />}
             {m.focus && active && layout === 'full' && (

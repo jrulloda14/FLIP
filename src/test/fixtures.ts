@@ -2,7 +2,8 @@ import type { Bootstrap, PomodoroView, Settings, SystemSnapshot, UsageSnapshot }
 
 export const settings = (): Settings => ({
   version: 1,
-  clock: { h24: true, seconds: false, blink: false, dateFormat: 'dow', metaLine: true, dotShape: 'round', ghostDots: true, homeTimeZone: 'Asia/Singapore' },
+  clock: { h24: true, seconds: false, blink: false, dateFormat: 'dow', metaLine: true, dotShape: 'round', ghostDots: true, homeTimeZone: 'Asia/Singapore',
+    template: 'dotMatrix', animate: true, animationMs: 320, scale: 1, spacing: 1, ink: 'bright', flapSeam: true, flapShadow: true, flapPanel: 'graphite' },
   appearance: { background: 'desktop', font: 'jetbrains', textScale: 1, contrast: 'standard', backgroundOpacity: 1 },
   cities: [
     { name: 'LONDON', code: 'LHR', tz: 'Europe/London' },

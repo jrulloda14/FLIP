@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { DotMatrix } from '../components/primitives';
+import { useEffect, useRef, useState } from 'react';
+import { ClockFace } from '../components/ClockFace';
 import { Head, OnOff, Row, Seg, Sheet } from '../components/controls';
+import { TEMPLATES, safeTemplate, shouldAnimate, useReducedMotion } from '../lib/clock';
 import { clockText, dateText } from '../lib/format';
 import { useFlip } from '../lib/store';
 import type { City, ClockSnapshot, ModuleId, PlatformInfo, Region, RuntimeStatus, Settings, ShortcutSettings } from '../lib/types';
@@ -33,12 +34,62 @@ const MAX_CITIES = 8;
 
 type Upd = (fn: (s: Settings) => Settings) => void;
 
+/** Sample times for the rollover demo: each pair crosses a multi-digit boundary. */
+export const DEMO_SEQUENCE = ['12:58', '12:59', '13:00', '09:59', '10:00', '23:59', '00:00'];
+
 function ClockTab({ s, set, clock, zones, systemZone }: { s: Settings; set: Upd; clock: ClockSnapshot; zones: string[]; systemZone: string }) {
   const c = s.clock;
   const put = (patch: Partial<Settings['clock']>) => set((x) => ({ ...x, clock: { ...x.clock, ...patch } }));
+  const reduced = useReducedMotion();
+  const animate = shouldAnimate(c.animate, reduced, c.animationMs);
+  const template = safeTemplate(c.template);
+  // Demo playback: labeled sample times, never presented as the real time.
+  const [demo, setDemo] = useState<number | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const step = Math.max(900, c.animationMs + 500);
+  const playDemo = () => {
+    window.clearTimeout(timer.current);
+    let i = 0;
+    setDemo(0);
+    const next = () => {
+      i += 1;
+      if (i >= DEMO_SEQUENCE.length) {
+        timer.current = window.setTimeout(() => setDemo(null), step);
+        return;
+      }
+      setDemo(i);
+      timer.current = window.setTimeout(next, step);
+    };
+    timer.current = window.setTimeout(next, step);
+  };
+  let live = clockText(clock.home, c.h24);
+  if (c.blink && clock.home.second % 2) live = live.replace(':', ';');
+  const demoText = demo === null ? null : DEMO_SEQUENCE[demo]!;
+  const previewText = demoText ?? live;
   return (
     <div className="fl-two" style={{ gridTemplateColumns: 'minmax(0,3fr) minmax(0,2fr)' }}>
       <div>
+        <Head>CLOCK STUDIO · TEMPLATE</Head>
+        <div className="fl-studio" role="radiogroup" aria-label="Clock template">
+          {TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              role="radio"
+              aria-checked={template === t.id}
+              aria-label={t.label}
+              title={t.hint}
+              className={`fl-studio__tile${template === t.id ? ' is-on' : ''}`}
+              onClick={() => put({ template: t.id })}
+            >
+              <span className="fl-studio__face">
+                <ClockFace template={t.id} text="12:34" height={52} clock={c} animate={false} label={`${t.label} preview`} />
+              </span>
+              <span className="fl-studio__name">{t.label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="fl-studio__note">TILES SHOW A FIXED PREVIEW TIME (12:34). THE DASHBOARD ALWAYS SHOWS REAL TIME.</div>
         <Head>FORMAT</Head>
         <Row label="HOURS">
           <Seg value={c.h24} options={[[true, '24H'], [false, '12H']]} onChange={(v) => put({ h24: v })} label="Hours" />
@@ -46,31 +97,134 @@ function ClockTab({ s, set, clock, zones, systemZone }: { s: Settings; set: Upd;
         <Row label="SECONDS" hint="Small digits beside the minutes">
           <OnOff value={c.seconds} onChange={(v) => put({ seconds: v })} label="Seconds" />
         </Row>
-        <Row label="COLON BLINK" hint="Off by default: steadier on a second screen">
-          <OnOff value={c.blink} onChange={(v) => put({ blink: v })} label="Colon blink" />
-        </Row>
         <Row label="DATE">
-          <Seg
-            value={c.dateFormat}
-            options={[
-              ['dow', dateText(clock.home, 'dow')],
-              ['iso', dateText(clock.home, 'iso')],
-              ['eu', dateText(clock.home, 'eu')],
-            ]}
-            onChange={(v) => put({ dateFormat: v })}
-            label="Date format"
-          />
+          <OnOff value={s.modules.date} onChange={(v) => set((x) => ({ ...x, modules: { ...x.modules, date: v } }))} label="Show date" />
+          {s.modules.date && (
+            <Seg
+              value={c.dateFormat}
+              options={[
+                ['dow', dateText(clock.home, 'dow')],
+                ['iso', dateText(clock.home, 'iso')],
+                ['eu', dateText(clock.home, 'eu')],
+              ]}
+              onChange={(v) => put({ dateFormat: v })}
+              label="Date format"
+            />
+          )}
         </Row>
         <Row label="WEEK + UTC LINE">
           <OnOff value={c.metaLine} onChange={(v) => put({ metaLine: v })} label="Week and UTC line" />
         </Row>
-        <Head>DOT MATRIX</Head>
-        <Row label="DOT SHAPE">
-          <Seg value={c.dotShape} options={[['round', 'ROUND'], ['square', 'SQUARE']]} onChange={(v) => put({ dotShape: v })} label="Dot shape" />
+        <Head>STYLE</Head>
+        <Row label="SIZE" hint="Smaller layouts cap the size so digits never clip">
+          <Seg
+            value={c.scale}
+            options={[
+              [0.85, 'S'],
+              [1, 'M'],
+              [1.15, 'L'],
+              [1.3, 'XL'],
+            ]}
+            onChange={(v) => put({ scale: v })}
+            label="Clock size"
+          />
         </Row>
-        <Row label="GHOST DOTS" hint="Show unlit dots for an LED panel look">
-          <OnOff value={c.ghostDots} onChange={(v) => put({ ghostDots: v })} label="Ghost dots" />
+        <Row label="DIGIT SPACING">
+          <Seg
+            value={c.spacing}
+            options={[
+              [0.6, 'TIGHT'],
+              [1, 'NORMAL'],
+              [1.4, 'WIDE'],
+            ]}
+            onChange={(v) => put({ spacing: v })}
+            label="Digit spacing"
+          />
         </Row>
+        <Row label="DIGIT COLOUR" hint="From the FLIP ink ramp; the board stays monochrome">
+          <Seg
+            value={c.ink}
+            options={[
+              ['bright', 'BRIGHT'],
+              ['soft', 'SOFT'],
+              ['dim', 'DIM'],
+            ]}
+            onChange={(v) => put({ ink: v })}
+            label="Digit colour"
+          />
+        </Row>
+        <Row label="COLON BLINK" hint="Off by default: steadier on a second screen">
+          <OnOff value={c.blink} onChange={(v) => put({ blink: v })} label="Colon blink" />
+        </Row>
+        <Head>ANIMATION</Head>
+        <Row
+          label="ANIMATE DIGITS"
+          hint={
+            reduced
+              ? 'Windows "Animation effects" is off, so digits change instantly'
+              : template === 'terminal' || template === 'minimal'
+                ? 'This template changes digits instantly'
+                : 'Only digits that change are animated'
+          }
+        >
+          <OnOff value={c.animate} onChange={(v) => put({ animate: v })} label="Animate digits" />
+        </Row>
+        {c.animate && (
+          <Row label="SPEED">
+            <Seg
+              value={c.animationMs}
+              options={[
+                [250, 'FAST 250MS'],
+                [320, 'NORMAL 320MS'],
+                [400, 'SLOW 400MS'],
+              ]}
+              onChange={(v) => put({ animationMs: v })}
+              label="Animation speed"
+            />
+          </Row>
+        )}
+        {template === 'dotMatrix' && (
+          <>
+            <Head>DOT MATRIX</Head>
+            <Row label="DOT SHAPE">
+              <Seg value={c.dotShape} options={[['round', 'ROUND'], ['square', 'SQUARE']]} onChange={(v) => put({ dotShape: v })} label="Dot shape" />
+            </Row>
+            <Row label="GHOST DOTS" hint="Show unlit dots for an LED panel look">
+              <OnOff value={c.ghostDots} onChange={(v) => put({ ghostDots: v })} label="Ghost dots" />
+            </Row>
+          </>
+        )}
+        {template === 'splitFlap' && (
+          <>
+            <Head>SPLIT FLAP</Head>
+            <Row label="PANEL SEAM" hint="The hinge line across each card">
+              <OnOff value={c.flapSeam} onChange={(v) => put({ flapSeam: v })} label="Panel seam" />
+            </Row>
+            <Row label="SHADOW" hint="Card depth and shading while a flap turns">
+              <OnOff value={c.flapShadow} onChange={(v) => put({ flapShadow: v })} label="Shadow" />
+            </Row>
+            <Row label="PANEL COLOUR">
+              <Seg
+                value={c.flapPanel}
+                options={[
+                  ['graphite', 'GRAPHITE'],
+                  ['black', 'BLACK'],
+                ]}
+                onChange={(v) => put({ flapPanel: v })}
+                label="Panel colour"
+              />
+            </Row>
+          </>
+        )}
+        {template === 'sevenSegment' && (
+          <>
+            <Head>SEVEN SEGMENT</Head>
+            <Row label="UNLIT SEGMENTS" hint="Faint off segments, like a real LED display">
+              <OnOff value={c.ghostDots} onChange={(v) => put({ ghostDots: v })} label="Unlit segments" />
+            </Row>
+          </>
+        )}
+        <Head>TIME ZONE</Head>
         <Row label="HOME ZONE" hint="DIFF column is relative to this zone">
           <select
             className="fl-select"
@@ -90,13 +244,21 @@ function ClockTab({ s, set, clock, zones, systemZone }: { s: Settings; set: Upd;
       <div style={{ padding: 'calc(var(--u) * 28px)' }}>
         <div className="fl-sec">
           <span>PREVIEW</span>
-          <span>LIVE</span>
+          <span data-testid="preview-label">{demoText ? `DEMO TIME · ${demoText}` : 'LIVE'}</span>
         </div>
-        <div className="fl-preview">
-          <DotMatrix text={clockText(clock.home, c.h24)} pitch={14} ghost={c.ghostDots} shape={c.dotShape} />
+        <div className="fl-studio__preview">
+          <ClockFace template={template} text={previewText} height={84} clock={c} animate={animate} label={demoText ? `Demo ${demoText}` : undefined} />
         </div>
-        <div className="fl-date" style={{ justifyContent: 'flex-end' }}>
-          <span>{dateText(clock.home, c.dateFormat)}</span>
+        {s.modules.date && (
+          <div className="fl-date" style={{ justifyContent: 'flex-end' }}>
+            <span>{dateText(clock.home, c.dateFormat)}</span>
+          </div>
+        )}
+        <div className="fl-studio__demo">
+          <button className="fl-btn" onClick={playDemo} disabled={demo !== null}>
+            {demo !== null ? 'PLAYING DEMO…' : 'PLAY ROLLOVER DEMO'}
+          </button>
+          <span className="fl-ink3 fl-small fl-case">Steps through 12:58 → 13:00, 09:59 → 10:00 and 23:59 → 00:00 using sample times.</span>
         </div>
       </div>
     </div>

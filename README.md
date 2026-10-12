@@ -26,6 +26,10 @@ Get-FileHash .\FLIP_0.1.0_x64-setup.exe -Algorithm SHA256
 
 ## Screenshots
 
+| Split-flap clock | Clock Studio |
+|---|---|
+| ![Split-flap template: mechanical airport-board digit cards with seconds](docs/screenshots/split-flap.png) | ![Clock Studio: template tiles, format, style and animation settings with a live preview](docs/screenshots/clock-studio.png) |
+
 | Focus session running | Settings › Display |
 |---|---|
 | ![Focus session: the Pomodoro countdown leads the left panel in dot-matrix digits](docs/screenshots/focus.png) | ![Settings panel, Display tab: display, mode, region, layer, board colour and opacity](docs/screenshots/settings.png) |
@@ -48,11 +52,31 @@ Everything FLIP does happens on your PC.
 - **No credentials** are requested or stored.
 - **To remove everything,** uninstall FLIP (tick *delete app data*), or delete the two folders above.
 
+## Clock Studio
+
+Settings › Clock lets you restyle the main clock. Every template shows real time from the same per-second tick; none of them keeps its own count.
+
+| Template | Look |
+|---|---|
+| **Dot Matrix** | The original FLIP 5×7 LED dots, round or square, with optional unlit "ghost" dots. It stays the default, and existing installs keep it. |
+| **Split Flap** | Mechanical airport-board cards. When a digit changes, its upper half falls on a hinge and the new lower half swings down. Only changed digits flip, so 12:59 → 13:00 flips three cards and leaves the first. Optional panel seam, shadow, and graphite or black cards. |
+| **Seven Segment** | Slanted LED segments, with optional faint unlit segments. |
+| **Terminal** | Monospaced console text with a prompt. |
+| **Minimal** | Large, light numerals. |
+
+Shared options:
+- 12/24-hour, seconds, date on/off and format, week + UTC line
+- size, digit spacing, and digit colour (bright, soft or dim, from FLIP's monochrome ink ramp)
+- colon blink
+- **Animate digits** on/off, with 250, 320 or 400 ms speed
+
+Digit animation turns off automatically when Windows' *Animation effects* (reduced motion) is off. After sleep, each digit flips once to the current time; missed minutes aren't replayed. Small layouts cap the clock size so digits never clip. The **Play rollover demo** button shows 12:58 → 13:00, 09:59 → 10:00 and 23:59 → 00:00 on the preview, clearly labeled as demo time.
+
 ## Status
 
 | Area | State |
 |---|---|
-| Clock, date, ISO week, UTC offset | Working. 12/24h, optional seconds, colon blink, round/square dots. |
+| Clock, date, ISO week, UTC offset | Working. Clock Studio templates (dot matrix, split flap, seven segment, terminal, minimal), 12/24h, optional seconds, colon blink, size, spacing, ink, animation on/off and speed. |
 | World clock | Working. IANA zones via `chrono-tz`, DST-correct, add/remove/reorder up to 8 cities, day-shift marker. |
 | Pomodoro | Working. Deadline-based, survives sleep and restarts, short/long breaks, auto-start, notifications, daily count and total focus time. |
 | System monitor | Working. CPU (total, per-core, 60s history), RAM, disks, network rates, process count, top processes, uptime. GPU load via Windows PDH. GPU temperature on NVIDIA only. CPU temperature always shows N/A (see Limitations). |
@@ -84,7 +108,7 @@ npm run tauri:dev
 | Task | Command |
 |---|---|
 | Run the desktop app in development (hot reload) | `npm run tauri:dev` |
-| Front end only, in a browser with mocked data | `npm run dev`, then open `http://localhost:1420/preview.html`. Parameters: `?focus&ai` for active states, `preset=clock\|ai\|system`, `mode=compact`, `bg=0.6`, `panel=settings:DISPLAY` for the panel window. |
+| Front end only, in a browser with mocked data | `npm run dev`, then open `http://localhost:1420/preview.html`. Parameters: `?focus&ai` for active states, `preset=clock\|ai\|system`, `mode=compact`, `bg=0.6`, `tpl=splitFlap\|sevenSegment\|terminal\|minimal`, `sec`, `h12`, `live` (tick from the browser's clock to watch digits flip), `panel=settings:CLOCK` for the panel window. |
 | Front-end tests | `npm test` |
 | Type check, lint and tests | `npm run check` |
 | Rust tests | `cd src-tauri && cargo test` |
@@ -135,10 +159,10 @@ To add a provider later, implement `UsageProvider` in `src-tauri/src/services/ai
 
 ```
 src/                         React UI
-  components/                DigitalClock, DateDisplay, AIUsageTable, WorldClockTable, SystemMonitor,
+  components/                DigitalClock + ClockFace (Clock Studio templates, split-flap cards), DateDisplay, AIUsageTable, WorldClockTable, SystemMonitor,
                              PomodoroPanel, StatusBar, StatusIndicator, primitives (DotMatrix, DotMeter, DotPlot, FlipText)
   overlays/                  SettingsWindow, ProviderDetail, SystemDetail, TimerPopover (rendered in the panel window)
-  lib/                       types.ts (mirrors Rust models), ipc.ts (only file that calls Tauri), store.tsx, format.ts, layout.ts
+  lib/                       clock.ts (template, digit-change and sizing helpers), types.ts (mirrors Rust models), ipc.ts (only file that calls Tauri), store.tsx, format.ts, layout.ts
   styles/                    tokens.css + flip.css (from design/), app.css (layouts)
   preview.tsx                dev-only browser preview with mocked IPC
 src-tauri/src/

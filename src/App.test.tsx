@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap, okClaude, pomodoro } from './test/fixtures';
@@ -262,6 +262,49 @@ describe('panel window', () => {
     await userEvent.type(screen.getByLabelText('IANA time zone'), 'Ocean/Atlantis');
     await userEvent.click(screen.getByRole('button', { name: 'ADD' }));
     expect(screen.getByRole('alert')).toHaveTextContent('CHOOSE A VALID IANA TIME ZONE');
+  });
+
+  it('Clock Studio: choosing Split Flap changes only the clock template', async () => {
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'Settings' });
+    await userEvent.click(screen.getByRole('tab', { name: 'CLOCK' }));
+    const before = bootstrap().settings;
+    await userEvent.click(screen.getByRole('radio', { name: 'SPLIT FLAP' }));
+    const after = lastSettings();
+    expect(after.clock.template).toBe('splitFlap');
+    expect(after.window).toEqual(before.window);
+    expect(after.modules).toEqual(before.modules);
+    expect(after.appearance).toEqual(before.appearance);
+    expect({ ...after.clock, template: before.clock.template }).toEqual(before.clock);
+    // Split-flap options appear once it is selected.
+    expect(await screen.findByLabelText('Panel seam')).toBeInTheDocument();
+  });
+
+  it('Clock Studio: animation toggle, speed and labeled demo time', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      render(<App surface="panel" />);
+      await screen.findByRole('dialog', { name: 'Settings' });
+      await userEvent.click(screen.getByRole('tab', { name: 'CLOCK' }));
+      expect(screen.getByTestId('preview-label')).toHaveTextContent('LIVE');
+      await userEvent.click(screen.getByRole('radio', { name: 'SLOW 400MS' }));
+      expect(lastSettings().clock.animationMs).toBe(400);
+      await userEvent.click(screen.getByRole('button', { name: 'PLAY ROLLOVER DEMO' }));
+      expect(screen.getByTestId('preview-label')).toHaveTextContent('DEMO TIME · 12:58');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+      expect(screen.getByTestId('preview-label')).toHaveTextContent('DEMO TIME · 12:59');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(screen.getByTestId('preview-label')).toHaveTextContent('LIVE');
+      await userEvent.click(within(screen.getByRole('radiogroup', { name: 'Animate digits' })).getByRole('radio', { name: 'OFF' }));
+      expect(lastSettings().clock.animate).toBe(false);
+      expect(screen.queryByRole('radiogroup', { name: 'Animation speed' })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('hides demo controls in release builds', async () => {

@@ -3,6 +3,9 @@
 
 export type DateFormat = 'dow' | 'iso' | 'eu';
 export type DotShape = 'round' | 'square';
+export type ClockTemplate = 'dotMatrix' | 'splitFlap' | 'sevenSegment' | 'terminal' | 'minimal';
+export type ClockInk = 'bright' | 'soft' | 'dim';
+export type FlapPanel = 'graphite' | 'black';
 export type LayoutPref = 'auto' | 'full' | 'compact' | 'mini';
 export type Layout = 'full' | 'compact' | 'mini';
 export type DisplayMode = 'ambient' | 'windowed' | 'compact';
@@ -31,6 +34,19 @@ export interface ClockSettings {
   ghostDots: boolean;
   /** IANA zone; null follows the Windows time zone. */
   homeTimeZone: string | null;
+  /** Clock Studio. */
+  template: ClockTemplate;
+  animate: boolean;
+  /** 150–600 ms. */
+  animationMs: number;
+  /** 0.7–1.4, clamped further on small layouts. */
+  scale: number;
+  /** 0.5–1.6 × the template's natural digit gap. */
+  spacing: number;
+  ink: ClockInk;
+  flapSeam: boolean;
+  flapShadow: boolean;
+  flapPanel: FlapPanel;
 }
 
 export interface AppearanceSettings {

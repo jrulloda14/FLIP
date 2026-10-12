@@ -10,12 +10,13 @@ use std::fs;
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
 use crate::paths::atomic_write;
 
-pub const SETTINGS_VERSION: u32 = 2;
+pub const SETTINGS_VERSION: u32 = 3;
 pub const MAX_CITIES: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -35,6 +36,48 @@ pub enum DotShape {
     Square,
 }
 
+/// Reads a field, or its default when the stored value has the wrong type or an unknown
+/// variant, so one bad value never discards the rest of the settings file.
+fn lenient<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned + Default,
+{
+    let v = Value::deserialize(d)?;
+    Ok(serde_json::from_value(v).unwrap_or_default())
+}
+
+/// Visual style of the main clock (Clock Studio).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum ClockTemplate {
+    #[default]
+    DotMatrix,
+    SplitFlap,
+    SevenSegment,
+    Terminal,
+    Minimal,
+}
+
+/// Digit colour, from the design system's ink ramp. Monochrome by design.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum ClockInk {
+    #[default]
+    Bright,
+    Soft,
+    Dim,
+}
+
+/// Split-flap card colour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum FlapPanel {
+    #[default]
+    Graphite,
+    Black,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ClockSettings {
@@ -47,7 +90,31 @@ pub struct ClockSettings {
     pub ghost_dots: bool,
     /// IANA zone. `None` follows the Windows time zone.
     pub home_time_zone: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    pub template: ClockTemplate,
+    /// Animate digit changes (also off when Windows asks for reduced motion).
+    #[serde(deserialize_with = "lenient")]
+    pub animate: bool,
+    /// Digit animation length, 150–600 ms.
+    #[serde(deserialize_with = "lenient")]
+    pub animation_ms: u32,
+    /// Clock size multiplier, 0.7–1.4. Clamped further on small layouts.
+    #[serde(deserialize_with = "lenient")]
+    pub scale: f64,
+    /// Gap between digits, 0.5–1.6 × the template's natural gap.
+    #[serde(deserialize_with = "lenient")]
+    pub spacing: f64,
+    #[serde(deserialize_with = "lenient")]
+    pub ink: ClockInk,
+    #[serde(deserialize_with = "lenient")]
+    pub flap_seam: bool,
+    #[serde(deserialize_with = "lenient")]
+    pub flap_shadow: bool,
+    #[serde(deserialize_with = "lenient")]
+    pub flap_panel: FlapPanel,
 }
+
+pub const ANIMATION_MS_DEFAULT: u32 = 320;
 
 impl Default for ClockSettings {
     fn default() -> Self {
@@ -60,6 +127,15 @@ impl Default for ClockSettings {
             dot_shape: DotShape::Round,
             ghost_dots: true,
             home_time_zone: None,
+            template: ClockTemplate::DotMatrix,
+            animate: true,
+            animation_ms: ANIMATION_MS_DEFAULT,
+            scale: 1.0,
+            spacing: 1.0,
+            ink: ClockInk::Bright,
+            flap_seam: true,
+            flap_shadow: true,
+            flap_panel: FlapPanel::Graphite,
         }
     }
 }
@@ -514,6 +590,20 @@ impl Settings {
         let mut fixes = Vec::new();
         self.version = SETTINGS_VERSION;
 
+        let c = &mut self.clock;
+        if !(150..=600).contains(&c.animation_ms) {
+            // 0 means the stored value was unreadable (lenient default): use the normal default.
+            c.animation_ms = if c.animation_ms == 0 { ANIMATION_MS_DEFAULT } else { c.animation_ms.clamp(150, 600) };
+            fixes.push("clock animation length reset".into());
+        }
+        for (v, lo, hi, name) in [(&mut c.scale, 0.7, 1.4, "clock size"), (&mut c.spacing, 0.5, 1.6, "digit spacing")] {
+            if !v.is_finite() || !(lo..=hi).contains(v) {
+                // 0.0 is the unreadable-value default; anything else is clamped.
+                *v = if !v.is_finite() || *v == 0.0 { 1.0 } else { v.clamp(lo, hi) };
+                fixes.push(format!("{name} reset"));
+            }
+        }
+
         if let Some(tz) = &self.clock.home_time_zone {
             if !is_valid_tz(tz) {
                 fixes.push(format!("unknown home time zone '{tz}', using the system zone"));
@@ -719,6 +809,17 @@ pub fn migrate(mut v: Value) -> Value {
             obj.insert("version".into(), Value::from(2));
         }
     }
+    if version < 3 {
+        // v3 adds Clock Studio. Existing installs keep the dot-matrix clock they already had,
+        // even if a future default changes.
+        if let Some(obj) = v.as_object_mut() {
+            let clock = obj.entry("clock").or_insert_with(|| Value::Object(Default::default()));
+            if let Some(c) = clock.as_object_mut() {
+                c.entry("template").or_insert(Value::String("dotMatrix".into()));
+            }
+            obj.insert("version".into(), Value::from(3));
+        }
+    }
     v
 }
 
@@ -854,7 +955,7 @@ mod tests {
             "ai": { "refreshMinutes": 5, "providers": [ { "id": "claude" } ] }
         });
         let s: Settings = serde_json::from_value(migrate(v0)).unwrap();
-        assert_eq!(s.version, 2);
+        assert_eq!(s.version, 3);
         assert_eq!(s.focus.focus_minutes, 50);
         assert_eq!(s.focus.short_minutes, 10);
         assert_eq!(s.focus.long_minutes, 20);
@@ -920,7 +1021,7 @@ mod tests {
             "appearance": { "font": "cascadia" }
         });
         let s: Settings = serde_json::from_value(migrate(v1)).unwrap();
-        assert_eq!(s.version, 2);
+        assert_eq!(s.version, 3);
         assert_eq!(s.window.mode, DisplayMode::Windowed);
         assert_eq!(s.window.layer, WindowLayer::Desktop);
         assert!(s.window.start_hidden);
@@ -959,5 +1060,79 @@ mod tests {
         assert_eq!(s.modules.order, vec![ModuleId::Focus, ModuleId::World, ModuleId::Ai, ModuleId::System]);
         assert_eq!(s.appearance.background_opacity, 0.3);
         assert_eq!(LayoutPreset::System.next(), LayoutPreset::Balanced);
+    }
+
+    #[test]
+    fn migrates_v2_and_keeps_dot_matrix_clock() {
+        let v2 = json!({
+            "version": 2,
+            "clock": { "h24": false, "seconds": true, "dotShape": "square", "ghostDots": false },
+            "window": { "mode": "ambient", "layer": "top", "display": "DISPLAY2" },
+            "modules": { "preset": "clock" }
+        });
+        let s: Settings = serde_json::from_value(migrate(v2)).unwrap();
+        assert_eq!(s.version, 3);
+        assert_eq!(s.clock.template, ClockTemplate::DotMatrix);
+        assert!(!s.clock.h24 && s.clock.seconds && !s.clock.ghost_dots);
+        assert_eq!(s.clock.dot_shape, DotShape::Square);
+        assert!(s.clock.animate);
+        assert_eq!(s.clock.animation_ms, ANIMATION_MS_DEFAULT);
+        // Unrelated preferences survive.
+        assert_eq!(s.window.mode, DisplayMode::Ambient);
+        assert_eq!(s.window.layer, WindowLayer::Top);
+        assert_eq!(s.window.display.as_deref(), Some("DISPLAY2"));
+        assert_eq!(s.modules.preset, LayoutPreset::Clock);
+    }
+
+    #[test]
+    fn unknown_clock_values_fall_back_without_losing_other_settings() {
+        let raw = json!({
+            "version": 3,
+            "clock": { "template": "hologram", "ink": 7, "flapPanel": "neon", "animate": "yes", "animationMs": "fast",
+                       "scale": "huge", "h24": false },
+            "window": { "layer": "top" }
+        });
+        let mut s: Settings = serde_json::from_value(raw).unwrap();
+        s.validate(false);
+        assert_eq!(s.clock.template, ClockTemplate::DotMatrix);
+        assert_eq!(s.clock.ink, ClockInk::Bright);
+        assert_eq!(s.clock.flap_panel, FlapPanel::Graphite);
+        assert_eq!(s.clock.animation_ms, ANIMATION_MS_DEFAULT);
+        assert_eq!(s.clock.scale, 1.0);
+        assert!(!s.clock.animate, "an unreadable bool falls back to false, never errors");
+        assert!(!s.clock.h24, "valid sibling fields are kept");
+        assert_eq!(s.window.layer, WindowLayer::Top);
+    }
+
+    #[test]
+    fn clock_ranges_are_clamped() {
+        let mut s = Settings::default();
+        s.clock.animation_ms = 5000;
+        s.clock.scale = 3.0;
+        s.clock.spacing = 0.1;
+        s.validate(false);
+        assert_eq!(s.clock.animation_ms, 600);
+        assert_eq!(s.clock.scale, 1.4);
+        assert_eq!(s.clock.spacing, 0.5);
+    }
+
+    #[test]
+    fn clock_studio_round_trips_and_defaults_restore() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut s = Settings::default();
+        s.clock.template = ClockTemplate::SplitFlap;
+        s.clock.animation_ms = 400;
+        s.clock.flap_seam = false;
+        s.clock.ink = ClockInk::Soft;
+        save(&p, &s).unwrap();
+        let l = load(&p, false);
+        assert_eq!(l.settings.clock.template, ClockTemplate::SplitFlap);
+        assert_eq!(l.settings.clock.animation_ms, 400);
+        assert!(!l.settings.clock.flap_seam);
+        assert!(l.notice.is_none());
+        let d = Settings::default();
+        assert_eq!(d.clock.template, ClockTemplate::DotMatrix);
+        assert!(d.clock.animate && d.clock.flap_seam && d.clock.flap_shadow);
     }
 }
