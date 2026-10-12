@@ -24,16 +24,29 @@ const FONTS = {
 
 /** Clock dot pitch for the FULL layout under each preset. */
 export const PRESET_PITCH: Record<LayoutPreset, number> = { balanced: 28, clock: 40, ai: 20, system: 22 };
+const COMPACT_PITCH: Record<LayoutPreset, number> = { balanced: 17, clock: 26, ai: 13, system: 14 };
 const NEXT_PRESET: Record<LayoutPreset, LayoutPreset> = { balanced: 'clock', clock: 'ai', ai: 'system', system: 'balanced' };
 const NEXT_MODE: Record<DisplayMode, DisplayMode> = { ambient: 'windowed', windowed: 'compact', compact: 'ambient' };
 
 /** Compact mode always shows a reduced layout; otherwise the density preference applies. */
+/** A density chosen in Settings › Modules always wins; AUTO follows the window size, and
+ *  COMPACT display mode never auto-picks the full two-column layout. */
 export function layoutFor(w: number, h: number, s: Settings): Layout {
-  if (s.window.mode === 'compact') {
-    const auto = pickLayout(w, h, 'auto');
-    return auto === 'full' ? 'compact' : auto;
-  }
-  return pickLayout(w, h, s.modules.layout);
+  if (s.modules.layout !== 'auto') return s.modules.layout;
+  const auto = pickLayout(w, h, 'auto');
+  return s.window.mode === 'compact' && auto === 'full' ? 'compact' : auto;
+}
+
+/** Presets apply to the FULL and COMPACT layouts; MINI has room for the clock and AI rows only. */
+export function presetFor(layout: Layout, preset: LayoutPreset): LayoutPreset {
+  return layout === 'mini' ? 'balanced' : preset;
+}
+
+/** Clock dot pitch (digit height / 7) per layout and preset, in 1080p design pixels. */
+export function clockPitch(layout: Layout, preset: LayoutPreset): number {
+  if (layout === 'full') return PRESET_PITCH[preset];
+  if (layout === 'compact') return COMPACT_PITCH[preset];
+  return PITCH.mini;
 }
 
 function useSize(ref: RefObject<HTMLElement | null>) {
@@ -83,7 +96,7 @@ export function Dashboard() {
   const clock = state.clock!;
   const pomo = state.pomodoro!;
   const layout = layoutFor(w, h, s);
-  const preset = layout === 'full' ? s.modules.preset : 'balanced';
+  const preset = presetFor(layout, s.modules.preset);
   const u = scaleFor(w, h, layout, s.appearance.textScale);
   const idle = useIdle(s.window.hideControlsAfter);
   const active = pomo.phase !== 'idle';
@@ -136,16 +149,17 @@ export function Dashboard() {
     'fl-dash',
     pomo.running ? 'is-running' : active ? 'is-paused' : '',
     s.appearance.contrast === 'dim' ? 'is-dim' : '',
+    s.appearance.backgroundOpacity < 1 ? 'is-translucent' : '',
     idle ? 'is-idle' : '',
     movable ? 'is-movable' : '',
   ]
     .filter(Boolean)
     .join(' ');
   const showLeft = layout === 'full' && preset !== 'clock' && (m.system || m.focus || m.keys);
-  const showStrip = layout === 'compact' || preset === 'clock';
+  const showStrip = layout === 'compact' || (layout === 'full' && preset === 'clock');
   const sys = state.system;
   const nowMs = clock.epochMs;
-  const pitch = layout === 'full' ? PRESET_PITCH[preset] : PITCH[layout];
+  const pitch = clockPitch(layout, preset);
   const displays = state.runtime?.displays ?? [];
   const here = displays.find((d) => d.id === s.window.display) ?? displays.find((d) => d.primary);
   const notice = state.runtime?.displayNotice ?? null;

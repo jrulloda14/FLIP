@@ -261,9 +261,6 @@ body,
 .fl-focus__matrix {
   padding: calc(var(--u) * 6px) 0 calc(var(--u) * 2px);
 }
-.fl-focus__matrix.is-paused .fl-matrix {
-  opacity: 0.45;
-}
 .fl-focus__side {
   grid-area: side;
   align-self: end;
@@ -737,30 +734,30 @@ body,
 
 /* ---------- layout presets (FULL layout) ---------- */
 /* CLOCK: one centred column; system collapses into the bottom strip. */
-.fl-dash[data-preset='clock'] {
+.fl-dash[data-layout='full'][data-preset='clock'] {
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   grid-template-areas: 'status' 'right' 'strip';
 }
-[data-preset='clock'] .fl-right {
+[data-layout='full'][data-preset='clock'] .fl-right {
   align-items: center;
 }
-[data-preset='clock'] .fl-date {
+[data-layout='full'][data-preset='clock'] .fl-date {
   font-size: calc(var(--u) * 38px);
   line-height: calc(var(--u) * 46px);
   margin-top: calc(var(--u) * 28px);
 }
-[data-preset='clock'] .fl-side .fl-usage {
+[data-layout='full'][data-preset='clock'] .fl-side .fl-usage {
   margin-top: calc(var(--u) * 36px);
 }
-[data-preset='clock'] .fl-board {
+[data-layout='full'][data-preset='clock'] .fl-board {
   margin-top: calc(var(--u) * 40px);
 }
-[data-preset='clock'] .fl-slot--ai,
-[data-preset='clock'] .fl-slot--world {
+[data-layout='full'][data-preset='clock'] .fl-slot--ai,
+[data-layout='full'][data-preset='clock'] .fl-slot--world {
   align-items: center;
 }
-[data-preset='clock'] .fl-cstrip {
+[data-layout='full'][data-preset='clock'] .fl-cstrip {
   grid-area: strip;
   display: flex;
   flex-wrap: wrap;
@@ -773,22 +770,22 @@ body,
   padding-top: calc(var(--u) * 14px);
 }
 /* AI: smaller clock, larger usage rows. */
-[data-preset='ai'] .fl-usage {
+[data-layout='full'][data-preset='ai'] .fl-usage {
   font-size: calc(var(--u) * 34px);
   line-height: calc(var(--u) * 44px);
   row-gap: calc(var(--u) * 34px);
 }
-[data-preset='ai'] .fl-usage__slot {
+[data-layout='full'][data-preset='ai'] .fl-usage__slot {
   min-width: calc(var(--u) * 230px);
 }
-[data-preset='ai'] .fl-side .fl-usage {
+[data-layout='full'][data-preset='ai'] .fl-side .fl-usage {
   margin-top: calc(var(--u) * 40px);
 }
-[data-preset='ai'] .fl-board {
+[data-layout='full'][data-preset='ai'] .fl-board {
   margin-top: calc(var(--u) * 56px);
 }
 /* SYSTEM: even split; the panel side is scaled up inline. */
-.fl-dash[data-preset='system'] {
+.fl-dash[data-layout='full'][data-preset='system'] {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
@@ -819,4 +816,46 @@ body,
 .fl-sheet__h[data-tauri-drag-region] {
   cursor: default;
   user-select: none;
+}
+
+/* ---------- presets in the COMPACT layout ---------- */
+/* CLOCK: larger clock, board hidden; system and focus stay in the strip. */
+[data-layout='compact'][data-preset='clock'] .fl-slot--world {
+  display: none;
+}
+[data-layout='compact'][data-preset='clock'] .fl-date {
+  font-size: calc(var(--u) * 36px);
+  line-height: calc(var(--u) * 44px);
+}
+/* AI: larger usage rows. */
+[data-layout='compact'][data-preset='ai'] .fl-side .fl-usage {
+  font-size: calc(var(--u) * 34px);
+  line-height: calc(var(--u) * 44px);
+  row-gap: calc(var(--u) * 22px);
+}
+[data-layout='compact'][data-preset='ai'] .fl-usage__slot {
+  min-width: calc(var(--u) * 200px);
+}
+/* SYSTEM: the system strip becomes a readable row of readings. */
+[data-layout='compact'][data-preset='system'] .fl-cstrip {
+  font-size: calc(var(--u) * 22px);
+  gap: calc(var(--u) * 10px) calc(var(--u) * 40px);
+  color: var(--ink-1);
+}
+
+/* ---------- translucent background: keep text legible over windows and wallpaper ---------- */
+/* A tight dark shadow, like Windows desktop-icon labels, plus brighter secondary greys. */
+.fl-dash.is-translucent {
+  --ink-1: #e0e0e0;
+  --ink-2: #cfcfcf;
+  --ink-3: #bdbdbd;
+}
+.fl-dash.is-translucent :is(span, div, b, button, small, kbd, sup) {
+  text-shadow:
+    0 1px 1px rgba(0, 0, 0, 0.95),
+    0 0 1px rgba(0, 0, 0, 0.9),
+    0 0 calc(var(--u) * 3px) rgba(0, 0, 0, 0.55);
+}
+.fl-dash.is-translucent :is(.fl-matrix, .fl-plot, .fl-seg7__digit, .fl-meter) {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.9));
 }

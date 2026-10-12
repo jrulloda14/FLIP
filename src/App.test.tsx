@@ -15,7 +15,7 @@ vi.mock('@tauri-apps/api/event', () => ({
   },
 }));
 
-const { default: App, layoutFor } = await import('./App');
+const { default: App, layoutFor, presetFor, clockPitch } = await import('./App');
 const { draftToWindows } = await import('./overlays/ProviderDetail');
 const { validShortcut } = await import('./overlays/SettingsWindow');
 
@@ -161,6 +161,49 @@ describe('dashboard window', () => {
   });
 });
 
+describe('density and presets (fix: ignored in compact mode)', () => {
+  it('a fixed density applies in every display mode', () => {
+    const s = bootstrap().settings;
+    const compactMode = { ...s, window: { ...s.window, mode: 'compact' as const } };
+    expect(layoutFor(1080, 608, { ...compactMode, modules: { ...s.modules, layout: 'full' } })).toBe('full');
+    expect(layoutFor(1920, 1080, { ...s, modules: { ...s.modules, layout: 'compact' } })).toBe('compact');
+    expect(layoutFor(924, 992, s)).toBe('compact'); // windowed half-screen, AUTO
+  });
+
+  it('presets apply to the compact layout too', () => {
+    expect(presetFor('compact', 'clock')).toBe('clock');
+    expect(presetFor('mini', 'clock')).toBe('balanced');
+    expect(clockPitch('compact', 'clock')).toBeGreaterThan(clockPitch('compact', 'balanced'));
+    expect(clockPitch('compact', 'ai')).toBeLessThan(clockPitch('compact', 'balanced'));
+  });
+
+  it('renders the chosen preset in compact mode and marks a translucent board', async () => {
+    const b = bootstrap();
+    b.settings.window.mode = 'compact';
+    b.settings.modules.preset = 'clock';
+    b.settings.appearance.backgroundOpacity = 0.4;
+    invoke.mockImplementation(async (cmd: string) => (cmd === 'get_bootstrap' ? b : undefined));
+    const { container } = render(<App surface="main" />);
+    await screen.findByRole('timer');
+    const dash = container.querySelector('.fl-dash')!;
+    expect(dash).toHaveAttribute('data-layout', 'compact');
+    expect(dash).toHaveAttribute('data-preset', 'clock');
+    expect(dash).toHaveClass('is-translucent');
+  });
+
+  it('the Pomodoro countdown uses the clock template', async () => {
+    const b = bootstrap();
+    b.settings.clock.template = 'splitFlap';
+    b.pomodoro = pomodoro({ phase: 'focus', running: true, remainingMs: 18 * 60_000 + 42_000 });
+    invoke.mockImplementation(async (cmd: string) => (cmd === 'get_bootstrap' ? b : undefined));
+    const { container } = render(<App surface="main" />);
+    await screen.findByRole('timer');
+    const countdown = container.querySelector('.fl-focus__matrix')!;
+    expect(countdown.querySelector('.fl-clockface--splitFlap')).toBeInTheDocument();
+    expect(within(countdown as HTMLElement).getAllByTestId('flap').map((f) => f.getAttribute('data-ch')).join('')).toBe('1842');
+  });
+});
+
 describe('panel window', () => {
   it('opens on the requested view and closes with Escape', async () => {
     render(<App surface="panel" />);
@@ -262,6 +305,17 @@ describe('panel window', () => {
     await userEvent.type(screen.getByLabelText('IANA time zone'), 'Ocean/Atlantis');
     await userEvent.click(screen.getByRole('button', { name: 'ADD' }));
     expect(screen.getByRole('alert')).toHaveTextContent('CHOOSE A VALID IANA TIME ZONE');
+  });
+
+  it('Clock Studio: date format has its own row and hides when the date is off', async () => {
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'Settings' });
+    await userEvent.click(screen.getByRole('tab', { name: 'CLOCK' }));
+    await userEvent.click(screen.getByRole('radio', { name: '2026-10-06' }));
+    expect(lastSettings().clock.dateFormat).toBe('iso');
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'Show date' })).getByRole('radio', { name: 'OFF' }));
+    expect(lastSettings().modules.date).toBe(false);
+    expect(screen.queryByRole('radiogroup', { name: 'Date format' })).not.toBeInTheDocument();
   });
 
   it('Clock Studio: choosing Split Flap changes only the clock template', async () => {

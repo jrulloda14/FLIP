@@ -136,6 +136,6 @@ describe('PomodoroPanel', () => {
       />,
     );
     expect(screen.getByTestId('pomo-phase')).toHaveTextContent('PAUSED · FOCUS');
-    expect(screen.getByRole('img', { name: '18:42' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '18:42 remaining' })).toBeInTheDocument();
   });
 });

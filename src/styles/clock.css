@@ -336,3 +336,12 @@
   gap: calc(var(--u) * 8px);
   margin-top: calc(var(--u) * 24px);
 }
+
+/* ---------- Pomodoro countdown in the clock's template ---------- */
+.fl-focus__matrix.is-paused .fl-clockface {
+  opacity: 0.45;
+}
+.fl-timer__top .fl-clockface,
+.fl-focus__matrix .fl-clockface {
+  max-width: 100%;
+}

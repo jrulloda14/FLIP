@@ -1,6 +1,7 @@
 import { focusTotal, hhmmFromIso, mmss, PHASE_LABEL, sessionDots } from '../lib/format';
 import type { ClockSettings, PomodoroView } from '../lib/types';
-import { DotMatrix, DotMeter, FlipText } from './primitives';
+import { ThemedTime } from './ClockFace';
+import { DotMeter, FlipText } from './primitives';
 
 export function phaseText(p: PomodoroView): string {
   if (p.phase === 'idle' || p.running) return PHASE_LABEL[p.phase];
@@ -55,7 +56,7 @@ export function PomodoroPanel({ p, clock, tz, focusMinutes, compactPitch, onOpen
           </div>
           {active ? (
             <div className={`fl-focus__matrix${p.running ? '' : ' is-paused'}`}>
-              <DotMatrix text={mmss(p.remainingMs)} pitch={compactPitch ? 10 : 14} ghost={clock.ghostDots} shape={clock.dotShape} />
+              <ThemedTime text={mmss(p.remainingMs)} height={(compactPitch ? 10 : 14) * 7} clock={clock} label={`${mmss(p.remainingMs)} remaining`} />
             </div>
           ) : (
             <div className="fl-focus__time" data-testid="pomo-time">

@@ -99,7 +99,9 @@ function ClockTab({ s, set, clock, zones, systemZone }: { s: Settings; set: Upd;
         </Row>
         <Row label="DATE">
           <OnOff value={s.modules.date} onChange={(v) => set((x) => ({ ...x, modules: { ...x.modules, date: v } }))} label="Show date" />
-          {s.modules.date && (
+        </Row>
+        {s.modules.date && (
+          <Row label="DATE FORMAT">
             <Seg
               value={c.dateFormat}
               options={[
@@ -110,8 +112,8 @@ function ClockTab({ s, set, clock, zones, systemZone }: { s: Settings; set: Upd;
               onChange={(v) => put({ dateFormat: v })}
               label="Date format"
             />
-          )}
-        </Row>
+          </Row>
+        )}
         <Row label="WEEK + UTC LINE">
           <OnOff value={c.metaLine} onChange={(v) => put({ metaLine: v })} label="Week and UTC line" />
         </Row>
@@ -496,7 +498,7 @@ export function ModulesTab({ s, set }: { s: Settings; set: Upd }) {
   return (
     <>
       <Head>LAYOUT PRESET</Head>
-      <Row label="PRESET" hint="L in FLIP, or the layout shortcut, cycles presets">
+      <Row label="PRESET" hint="Applies to the FULL and COMPACT layouts. L, or the layout shortcut, cycles presets">
         <Seg
           value={m.preset}
           options={[
@@ -509,7 +511,7 @@ export function ModulesTab({ s, set }: { s: Settings; set: Upd }) {
           label="Layout preset"
         />
       </Row>
-      <Row label="DENSITY" hint="AUTO picks by window size: ≥1150×620 FULL, ≥600×300 COMPACT">
+      <Row label="DENSITY" hint="AUTO picks by window size (≥1150×620 FULL, ≥600×300 COMPACT); a fixed choice applies in every display mode">
         <Seg value={m.layout} options={[['auto', 'AUTO'], ['full', 'FULL'], ['compact', 'COMPACT'], ['mini', 'MINI']]} onChange={(v) => put({ layout: v })} label="Density" />
       </Row>
       <Head>MODULES</Head>

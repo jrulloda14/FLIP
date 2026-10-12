@@ -65,10 +65,12 @@ interface DotMatrixProps {
   gap?: number;
   /** Switch dots without the fade (animation off). */
   instant?: boolean;
+  /** Hide from assistive tech when a parent already labels the time. */
+  decorative?: boolean;
 }
 
 /** 5×7 dot-matrix text. Dot diameter is 72% of the pitch; sizes scale with --u. */
-export const DotMatrix = memo(function DotMatrix({ text, pitch, ghost = true, shape = 'round', warn, className, label, gap = 1, instant }: DotMatrixProps) {
+export const DotMatrix = memo(function DotMatrix({ text, pitch, ghost = true, shape = 'round', warn, className, label, gap = 1, instant, decorative }: DotMatrixProps) {
   const { cols, dots } = matrixDots(text, gap);
   const s = 0.72;
   const style: CSSProperties = {
@@ -79,7 +81,14 @@ export const DotMatrix = memo(function DotMatrix({ text, pitch, ghost = true, sh
     .filter(Boolean)
     .join(' ');
   return (
-    <svg className={cls} viewBox={`0 0 ${cols} 7`} style={style} role="img" aria-label={label ?? text.replace(';', ':')}>
+    <svg
+      className={cls}
+      viewBox={`0 0 ${cols} 7`}
+      style={style}
+      role={decorative ? undefined : 'img'}
+      aria-hidden={decorative ? true : undefined}
+      aria-label={decorative ? undefined : (label ?? text.replace(';', ':'))}
+    >
       {dots.map((d) =>
         shape === 'square' ? (
           <rect

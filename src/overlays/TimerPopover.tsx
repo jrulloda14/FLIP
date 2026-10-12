@@ -1,4 +1,5 @@
-import { DotMatrix, DotMeter } from '../components/primitives';
+import { ThemedTime } from '../components/ClockFace';
+import { DotMeter } from '../components/primitives';
 import { Seg } from '../components/controls';
 import { endsText, phaseText, progress } from '../components/PomodoroPanel';
 import { focusTotal, mmss, sessionDots } from '../lib/format';
@@ -21,7 +22,7 @@ export function TimerPopover() {
         </div>
         <div className="fl-sheet__b">
           <div className="fl-timer__top">
-            <DotMatrix text={mmss(p.remainingMs)} pitch={13} ghost={s.clock.ghostDots} shape={s.clock.dotShape} />
+            <ThemedTime text={mmss(p.remainingMs)} height={13 * 7} clock={s.clock} label={`${mmss(p.remainingMs)} remaining`} />
             <div className="fl-focus__side">
               <div className="fl-focus__dots">{sessionDots(p.session, p.sessions, p.phase)}</div>
               <div>{endsText(p, tz, s.focus.focusMinutes)}</div>

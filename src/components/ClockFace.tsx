@@ -1,7 +1,7 @@
 // Clock Studio faces. Each face only renders the string it is given; the time itself always
 // comes from the backend tick (see DigitalClock), so no face keeps or advances time.
 import { memo, useEffect, useState, type CSSProperties } from 'react';
-import { INK_VAR, fixedWidth } from '../lib/clock';
+import { INK_VAR, fixedWidth, safeTemplate, shouldAnimate, useReducedMotion } from '../lib/clock';
 import type { ClockSettings, ClockTemplate } from '../lib/types';
 import { DotMatrix } from './primitives';
 
@@ -181,6 +181,24 @@ function TextFace({ text, kind }: { text: string; kind: 'terminal' | 'minimal' }
   );
 }
 
+// ---------------------------------------------------------------- themed secondary times
+
+/** Any other time readout (e.g. the Pomodoro countdown) in the main clock's template,
+ *  colour and animation settings, so the board reads as one style. */
+export function ThemedTime({ text, height, clock, label }: { text: string; height: number; clock: ClockSettings; label?: string }) {
+  const reduced = useReducedMotion();
+  return (
+    <ClockFace
+      template={safeTemplate(clock.template)}
+      text={text}
+      height={height}
+      clock={clock}
+      animate={shouldAnimate(clock.animate, reduced, clock.animationMs)}
+      label={label}
+    />
+  );
+}
+
 // ---------------------------------------------------------------- face switch
 
 /** Renders the clock text in the chosen Clock Studio template. */
@@ -203,7 +221,7 @@ export function ClockFace(props: FaceProps & { template: ClockTemplate }) {
           shape={clock.dotShape}
           gap={clock.spacing}
           instant={!animate}
-          label={label}
+          decorative
         />
       )}
       {template === 'splitFlap' && <SplitFlapFace {...props} />}
