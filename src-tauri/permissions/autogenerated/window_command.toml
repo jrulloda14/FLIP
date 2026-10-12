@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-window-command"
+description = "Enables the window_command command without any pre-configured scope."
+commands.allow = ["window_command"]
+
+[[permission]]
+identifier = "deny-window-command"
+description = "Denies the window_command command without any pre-configured scope."
+commands.deny = ["window_command"]

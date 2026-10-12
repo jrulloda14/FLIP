@@ -1,0 +1,15 @@
+/* JetBrains Mono 400/500, SIL OFL 1.1 (see src/fonts/OFL.txt). Bundled so FLIP works offline. */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+  src: url('../fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-weight: 500;
+  font-style: normal;
+  font-display: block;
+  src: url('../fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');
+}

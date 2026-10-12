@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reset-layout"
+description = "Enables the reset_layout command without any pre-configured scope."
+commands.allow = ["reset_layout"]
+
+[[permission]]
+identifier = "deny-reset-layout"
+description = "Denies the reset_layout command without any pre-configured scope."
+commands.deny = ["reset_layout"]

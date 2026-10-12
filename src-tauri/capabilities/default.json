@@ -1,0 +1,26 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Least privilege for the FLIP dashboard and panel windows: listen to backend events, drag the borderless windows, and call FLIP's own commands. No filesystem, shell, HTTP or opener access.",
+  "windows": [
+    "main",
+    "panel"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "allow-get-bootstrap",
+    "allow-update-settings",
+    "allow-restore-default-settings",
+    "allow-pomodoro-command",
+    "allow-refresh-ai",
+    "allow-set-manual-usage",
+    "allow-clear-manual-usage",
+    "allow-window-command",
+    "allow-open-panel",
+    "allow-close-panel",
+    "allow-apply-region",
+    "allow-reset-layout"
+  ]
+}

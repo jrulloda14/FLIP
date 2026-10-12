@@ -1,0 +1,66 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "FLIP",
+  "version": "0.1.0",
+  "identifier": "com.flip.dashboard",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "FLIP",
+        "width": 1280,
+        "height": 720,
+        "minWidth": 420,
+        "minHeight": 200,
+        "resizable": true,
+        "decorations": false,
+        "visible": false,
+        "backgroundColor": "#00000000",
+        "theme": "Dark",
+        "center": false,
+        "skipTaskbar": true,
+        "transparent": true,
+        "shadow": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "freezePrototype": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "FLIP",
+    "shortDescription": "Airport-board clock and productivity dashboard",
+    "longDescription": "FLIP is a minimalist airport-style clock, world clock, Pomodoro timer, system monitor and AI usage board for Windows.",
+    "category": "Productivity",
+    "copyright": "MIT License \u00b7 FLIP contributors",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    },
+    "license": "MIT",
+    "licenseFile": "../LICENSE"
+  }
+}

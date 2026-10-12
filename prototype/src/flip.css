@@ -1,0 +1,111 @@
+/* FLIP components. Needs tokens.css. Every size is a 1080p design pixel multiplied by --u (see README: Scaling). */
+.fl-display{--u:1;background:var(--bg);color:var(--ink);font-family:var(--font-mono);text-transform:uppercase;font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"zero" 0;-webkit-font-smoothing:antialiased;letter-spacing:.03em;line-height:1.3}
+.fl-display *,.fl-display *::before,.fl-display *::after{box-sizing:border-box}
+.fl-display :where(button){font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit}
+.fl-display :focus-visible{outline:1px dotted var(--ink);outline-offset:u(3)}
+.fl-ink1{color:var(--ink-1)}.fl-ink2{color:var(--ink-2)}.fl-ink3{color:var(--ink-3)}.fl-warn{color:var(--amber)}
+.fl-hit{cursor:pointer;border-radius:var(--radius-0)}
+.fl-hit:hover{background:rgba(242,242,242,.035)}
+
+/* Dot matrix */
+.fl-matrix{display:block;overflow:visible}
+.fl-matrix circle,.fl-matrix rect{fill:var(--matrix-ghost);transition:fill .26s cubic-bezier(.2,.7,.2,1)}
+.fl-matrix.no-ghost circle,.fl-matrix.no-ghost rect{fill:transparent}
+.fl-matrix .on,.fl-matrix.no-ghost .on{fill:var(--ink)}
+.fl-matrix.is-instant *{transition:none!important}
+.fl-matrix--warn .on{fill:var(--amber)}
+
+/* Dotted meter */
+.fl-meter{display:flex;justify-content:space-between;align-items:center;height:u(6);width:100%}
+.fl-meter i{display:block;flex:none;width:u(4);height:u(4);border-radius:50%;background:var(--meter-off)}
+.fl-meter i.on{background:var(--ink)}
+.fl-meter.is-warn i{background:var(--amber-dim)}
+.fl-meter.is-warn i.on{background:var(--amber)}
+.fl-meter--sq i{border-radius:0;width:u(10);height:u(6)}
+.fl-meter.is-loading i{animation:fl-scan 1.32s linear infinite}
+@keyframes fl-scan{0%,100%{background:var(--meter-off)}6%{background:var(--ink)}18%{background:var(--meter-off)}}
+
+/* Dot plot */
+.fl-plot{display:block;width:100%}
+.fl-plot rect{fill:var(--meter-off)}
+.fl-plot rect.on{fill:var(--ink-2)}
+
+/* Status bar */
+.fl-status{display:flex;justify-content:space-between;align-items:center;min-height:u(36);font-size:u(13);letter-spacing:.1em;font-weight:500;color:var(--ink-3);gap:u(24)}
+.fl-status__l,.fl-status__r{display:flex;align-items:center;gap:u(22);white-space:nowrap}
+.fl-word{color:var(--ink-2);letter-spacing:.32em}
+.fl-ind{display:inline-flex;align-items:center;gap:u(7)}
+.fl-led{display:inline-block;width:u(6);height:u(6);border-radius:50%;background:var(--ink-2)}
+.fl-led.is-off{background:transparent;box-shadow:inset 0 0 0 1px var(--ink-3)}
+.fl-led.is-warn{background:var(--amber)}
+.fl-led.is-pulse{animation:fl-pulse 1.6s ease-in-out infinite}
+@keyframes fl-pulse{50%{opacity:.25}}
+.fl-ctl{all:unset;cursor:pointer;padding:u(4) u(8);color:var(--ink-3);font-size:u(13);letter-spacing:.1em;font-weight:500;line-height:1}
+.fl-ctl:hover{color:var(--ink)}
+.fl-ctl.is-on{color:var(--ink-1)}
+.fl-ctl:focus-visible{outline:1px dotted var(--ink);outline-offset:2px}
+
+/* AI usage rows */
+.fl-usage{display:grid;column-gap:u(40);row-gap:u(26);justify-content:end;align-items:start;font-size:u(26);font-weight:500;line-height:u(34)}
+.fl-usage__row{display:contents}
+.fl-usage__name{text-align:right;padding:0 u(4)}
+.fl-usage__slot{display:flex;flex-direction:column;gap:u(7);min-width:u(150);white-space:nowrap}
+.fl-usage__val{display:flex;justify-content:flex-end;gap:u(16)}
+.fl-usage__span{grid-column:2 / -1;text-align:right;white-space:nowrap}
+.fl-usage .is-dim{color:var(--ink-3)}
+.fl-usage__meta{font-size:u(12);letter-spacing:.08em;color:var(--ink-3);text-align:right;font-weight:400;line-height:1}
+
+/* Airport board (world clock) */
+.fl-board{display:flex;flex-direction:column;font-size:u(26);font-weight:500;line-height:u(36)}
+.fl-board__r{display:grid;grid-template-columns:minmax(0,1fr) u(100) u(118) u(96);column-gap:u(36);padding:u(2) u(4)}
+.fl-board__r>span{white-space:nowrap;overflow:hidden}
+.fl-board__r .r{text-align:right}
+.fl-board__h{color:var(--ink-2);font-weight:400;margin-bottom:u(4)}
+.fl-board__r.is-home{color:var(--ink-2)}
+
+/* Left panel: sections + metric rows */
+.fl-sec{display:flex;justify-content:space-between;align-items:baseline;gap:u(16);font-size:u(13);letter-spacing:.14em;font-weight:500;color:var(--ink-3);padding-bottom:u(10);border-bottom:1px solid var(--rule);white-space:nowrap}
+.fl-mrow{display:grid;grid-template-columns:u(86) minmax(0,1fr) u(176) u(84);align-items:center;column-gap:u(20);min-height:u(42);font-size:u(16);letter-spacing:.04em;color:var(--ink-2);border-bottom:1px solid var(--rule)}
+.fl-mrow b{font-weight:500;color:var(--ink-1)}
+.fl-mrow .r{text-align:right;white-space:nowrap}
+.fl-mrow--plot{grid-template-columns:u(86) minmax(0,1fr);padding:u(10) 0}
+
+/* Segmented control (settings) */
+.fl-seg{display:inline-flex;border:1px solid var(--rule-strong);font-size:u(15);font-weight:500;letter-spacing:.06em}
+.fl-seg button{all:unset;cursor:pointer;white-space:nowrap;padding:u(6) u(14);color:var(--ink-2);line-height:1.2}
+.fl-seg button+button{border-left:1px solid var(--rule-strong)}
+.fl-seg button:hover{color:var(--ink)}
+.fl-seg button.is-on{background:var(--bg-invert);color:var(--bg)}
+.fl-seg button:focus-visible{outline:1px dotted var(--ink);outline-offset:2px}
+.fl-btn{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:u(10);border:1px solid var(--rule-strong);padding:u(6) u(14);font-size:u(15);font-weight:500;letter-spacing:.06em;color:var(--ink-1)}
+.fl-btn:hover{border-color:var(--ink-2);color:var(--ink)}
+.fl-btn kbd,.fl-kbd{font:inherit;font-size:.8em;color:var(--ink-3);border:1px solid var(--rule);padding:0 u(5)}
+.fl-btn--primary{background:var(--bg-invert);color:var(--bg);border-color:var(--bg-invert)}
+.fl-btn--primary kbd{color:var(--bg);border-color:rgba(5,5,5,.35)}
+
+/* Overlay sheet */
+.fl-sheet{background:var(--bg-raised);border:1px solid var(--rule-strong);display:flex;flex-direction:column;min-height:0}
+.fl-sheet__h{display:flex;justify-content:space-between;align-items:center;padding:u(18) u(28);border-bottom:1px solid var(--rule);font-size:u(15);letter-spacing:.14em;font-weight:500}
+.fl-tabs{display:flex;gap:u(4);padding:0 u(20);border-bottom:1px solid var(--rule)}
+.fl-tabs button{all:unset;cursor:pointer;padding:u(14) u(10);font-size:u(14);letter-spacing:.12em;font-weight:500;color:var(--ink-3);border-bottom:2px solid transparent;margin-bottom:-1px}
+.fl-tabs button:hover{color:var(--ink-1)}
+.fl-tabs button.is-on{color:var(--ink);border-bottom-color:var(--ink)}
+.fl-srow{display:grid;grid-template-columns:u(220) max-content minmax(0,1fr);align-items:center;column-gap:u(24);padding:u(13) u(28);border-bottom:1px solid var(--rule);font-size:u(15);letter-spacing:.06em}
+.fl-srow__l{color:var(--ink-2)}
+.fl-srow__hint{text-align:right;font-size:u(12);letter-spacing:.08em;color:var(--ink-3);text-transform:none}
+
+/* Menu (tray) */
+.fl-menu{background:var(--bg-raised);border:1px solid var(--rule-strong);border-radius:var(--radius-1);padding:u(6) 0;font-size:u(14);letter-spacing:.06em;font-weight:500;min-width:u(320)}
+.fl-menu__i{display:grid;grid-template-columns:u(22) 1fr auto;align-items:center;padding:u(8) u(14);color:var(--ink-1);cursor:pointer}
+.fl-menu__i:hover{background:var(--bg-invert);color:var(--bg)}
+.fl-menu__i:hover .fl-ink3{color:#3a3a3a}
+.fl-menu__sep{height:1px;background:var(--rule);margin:u(6) 0}
+.fl-menu__head{padding:u(8) u(14) u(10);color:var(--ink-3);font-size:u(12);letter-spacing:.12em}
+
+/* Window frame */
+.fl-win{position:absolute;background:var(--bg);border:1px solid var(--rule-strong);border-radius:var(--radius-win);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 u(24) u(64) rgba(0,0,0,.55)}
+.fl-titlebar{display:flex;align-items:center;justify-content:space-between;height:u(32);flex:none;padding-left:u(14);font-size:u(12);letter-spacing:.14em;font-weight:500;color:var(--ink-3);border-bottom:1px solid var(--rule);user-select:none}
+.fl-titlebar__c{display:flex;height:100%}
+.fl-titlebar__c button{all:unset;cursor:pointer;width:u(46);display:grid;place-items:center;color:var(--ink-2);font-size:u(13)}
+.fl-titlebar__c button:hover{background:#1a1a1a;color:var(--ink)}
+.fl-titlebar__c button.x:hover{background:#c42b1c;color:#fff}

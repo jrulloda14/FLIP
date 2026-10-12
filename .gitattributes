@@ -1,0 +1,7 @@
+# Store text with LF in the repository; check out with native line endings.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary

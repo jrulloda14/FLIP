@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-clear-manual-usage"
+description = "Enables the clear_manual_usage command without any pre-configured scope."
+commands.allow = ["clear_manual_usage"]
+
+[[permission]]
+identifier = "deny-clear-manual-usage"
+description = "Denies the clear_manual_usage command without any pre-configured scope."
+commands.deny = ["clear_manual_usage"]

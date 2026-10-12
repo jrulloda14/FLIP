@@ -1,0 +1,45 @@
+/* FLIP — generated from tokens.json */
+:root, [data-theme="display"] {
+  --bg: #050505;
+  --bg-raised: #0b0b0b;
+  --bg-invert: #f2f2f2;
+  --ink: #f2f2f2;
+  --ink-1: #c8c8c8;
+  --ink-2: #929292;
+  --ink-3: #7a7a7a;
+  --rule: #292929;
+  --rule-strong: #5e5e5e;
+  --meter-off: #333333;
+  --matrix-ghost: #0f0f0f;
+  --amber: #d9a441;
+  --amber-dim: #6b5226;
+  --desk: #1c1c1e;
+  --taskbar: #202020;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-14: 56px;
+  --space-18: 72px;
+  --radius-0: 0px;
+  --radius-1: 2px;
+  --radius-win: 8px;
+  --matrix-pitch-xl: 28px;
+  --matrix-pitch-l: 12px;
+  --matrix-pitch-m: 8px;
+  --matrix-dot: 72%;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+}
+.t-date { font-family: var(--font-mono); font-size: 30px; line-height: 36px; font-weight: 500; letter-spacing: 0.06em; }
+.t-board { font-family: var(--font-mono); font-size: 26px; line-height: 36px; font-weight: 500; letter-spacing: 0.03em; }
+.t-board-head { font-family: var(--font-mono); font-size: 26px; line-height: 36px; font-weight: 400; letter-spacing: 0.03em; }
+.t-metric { font-family: var(--font-mono); font-size: 16px; line-height: 24px; font-weight: 400; letter-spacing: 0.04em; }
+.t-countdown { font-family: var(--font-mono); font-size: 34px; line-height: 40px; font-weight: 500; letter-spacing: 0.04em; }
+.t-section { font-family: var(--font-mono); font-size: 13px; line-height: 18px; font-weight: 500; letter-spacing: 0.14em; }
+.t-status { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 500; letter-spacing: 0.1em; }
+.t-control { font-family: var(--font-mono); font-size: 15px; line-height: 22px; font-weight: 500; letter-spacing: 0.06em; }
+.t-micro { font-family: var(--font-mono); font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: 0.08em; }
