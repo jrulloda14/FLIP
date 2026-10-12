@@ -1,7 +1,7 @@
 import { DotMeter, DotPlot } from '../components/primitives';
 import { Sheet } from '../components/controls';
 import { normalizeHistory } from '../components/SystemMonitor';
-import { gb, pct, rate, temp, uptime } from '../lib/format';
+import { bytes, gb, missing, orMissing, pct, rate, temp, uptime } from '../lib/format';
 import { useFlip } from '../lib/store';
 
 export function SystemDetail() {
@@ -22,7 +22,16 @@ export function SystemDetail() {
     );
   }
   const unit = s.system.tempUnit;
-  const NA = ({ v }: { v: string }) => <span className={v === 'N/A' ? 'fl-ink3' : undefined}>{v}</span>;
+  const NA = ({ v }: { v: string }) => <span className={v === 'N/A' ? 'fl-ink3' : v === 'ERR' ? 'fl-warn' : undefined}>{v}</span>;
+  const lim = sys.limitations;
+  const g = sys.gpu;
+  const gpuMem =
+    g.memoryUsedBytes !== null && g.memoryTotalBytes
+      ? `${bytes(g.memoryUsedBytes)} / ${bytes(g.memoryTotalBytes)}${g.memoryShared ? ' SHARED' : ''} · ${pct(g.memoryUsedBytes / g.memoryTotalBytes)}`
+      : missing(lim, 'GPU MEMORY', 'GPU LOAD', 'GPU');
+  const io = sys.diskIo;
+  const unsupported = lim.filter((l) => l.kind === 'unsupported');
+  const failing = lim.filter((l) => l.kind === 'error');
   return (
     <Sheet
       label="System monitor detail"
@@ -64,7 +73,7 @@ export function SystemDetail() {
           </div>
           <div className="fl-kv">
             <span>CPU TEMP</span>
-            <NA v={temp(sys.cpu.temperatureC, unit)} />
+            <NA v={orMissing(temp(sys.cpu.temperatureC, unit), missing(lim, 'CPU TEMP'))} />
           </div>
           <div className="fl-detail">
             <div className="fl-sec fl-sec--flat">
@@ -77,6 +86,17 @@ export function SystemDetail() {
             <DotPlot values={normalizeHistory(sys.txHistory)} rows={3} pitch={8} />
             <div className="fl-ink3 fl-small">DOWNLOAD (TOP) · UPLOAD (BOTTOM) · LAST 60 SAMPLES, SCALED TO PEAK</div>
           </div>
+          <div className="fl-detail">
+            <div className="fl-sec fl-sec--flat">
+              <span>DISK ACTIVITY · ALL VOLUMES</span>
+              <span>
+                R <NA v={orMissing(rate(io.readBytesPerSec), missing(lim, 'DISK I/O'))} /> · W{' '}
+                <NA v={orMissing(rate(io.writeBytesPerSec), missing(lim, 'DISK I/O'))} />
+              </span>
+            </div>
+            <DotPlot values={normalizeHistory(sys.diskHistory)} rows={4} pitch={8} />
+            <div className="fl-ink3 fl-small">READ + WRITE · LAST 60 SAMPLES, SCALED TO PEAK</div>
+          </div>
         </div>
         <div>
           <div className="fl-kv">
@@ -86,20 +106,35 @@ export function SystemDetail() {
             </span>
           </div>
           <div className="fl-kv">
+            <span>MEMORY AVAILABLE</span>
+            <span>{gb(sys.memory.availableBytes)} GB</span>
+          </div>
+          <div className="fl-kv">
             <span>GPU</span>
-            <span>{sys.gpu.name?.toUpperCase() ?? 'N/A'}</span>
+            <NA v={sys.gpu.name?.toUpperCase() ?? missing(lim, 'GPU LOAD', 'GPU')} />
           </div>
           <div className="fl-kv">
             <span>GPU LOAD · TEMP</span>
             <span>
-              <NA v={pct(sys.gpu.usage)} /> · <NA v={temp(sys.gpu.temperatureC, unit)} />
+              <NA v={orMissing(pct(sys.gpu.usage), missing(lim, 'GPU LOAD', 'GPU'))} /> ·{' '}
+              <NA v={orMissing(temp(sys.gpu.temperatureC, unit), missing(lim, 'GPU TEMP', 'GPU'))} />
             </span>
+          </div>
+          <div className="fl-kv">
+            <span>GPU MEMORY</span>
+            <NA v={gpuMem} />
           </div>
           {sys.disks.map((d) => (
             <div className="fl-kv" key={d.mount}>
               <span>DISK {d.mount}</span>
               <span>
                 {gb(d.usedBytes, 0)} / {gb(d.totalBytes, 0)} GB · {pct(d.totalBytes ? d.usedBytes / d.totalBytes : null)}
+                {d.readBytesPerSec !== null && d.writeBytesPerSec !== null && (
+                  <span className="fl-ink3">
+                    {' '}
+                    · R {rate(d.readBytesPerSec)} W {rate(d.writeBytesPerSec)}
+                  </span>
+                )}
               </span>
             </div>
           ))}
@@ -117,13 +152,27 @@ export function SystemDetail() {
               </div>
             ))}
           </div>
-          {sys.limitations.length > 0 && (
-            <div className="fl-detail">
+          {failing.length > 0 && (
+            <div className="fl-detail" data-testid="limits-error">
               <div className="fl-sec fl-sec--flat">
-                <span>LIMITATIONS</span>
+                <span className="fl-warn">READ ERRORS</span>
+                <span>ERR · RETRIED EVERY SAMPLE</span>
+              </div>
+              {failing.map((l) => (
+                <div className="fl-limit" key={l.metric}>
+                  <span>{l.metric}</span>
+                  <span className="fl-case">{l.reason}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {unsupported.length > 0 && (
+            <div className="fl-detail" data-testid="limits-unsupported">
+              <div className="fl-sec fl-sec--flat">
+                <span>NOT AVAILABLE ON THIS PC</span>
                 <span>WHY SOME VALUES ARE N/A</span>
               </div>
-              {sys.limitations.map((l) => (
+              {unsupported.map((l) => (
                 <div className="fl-limit" key={l.metric}>
                   <span>{l.metric}</span>
                   <span className="fl-case">{l.reason}</span>

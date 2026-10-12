@@ -16,7 +16,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::commands::{self, EVT_CLOCK, EVT_POMODORO, EVT_SYSTEM};
+use crate::services::alerts::AlertEngine;
 use crate::services::pomodoro::{self, Completed, Phase};
+use crate::services::profiles;
 use crate::services::settings::{self, WindowLayer};
 use crate::services::system_monitor::SystemMonitor;
 use crate::services::{desktop_layer, tray, window};
@@ -97,6 +99,16 @@ async fn clock_loop(app: AppHandle) {
 
         if tick % 5 == 0 {
             if let Some(w) = window::main_window(&app) {
+                // Optional profile auto-switch when displays are added or removed while FLIP runs.
+                // The first check only records the count, so the profile restored at launch stays.
+                let count = window::display_count(&w);
+                if count > 0 {
+                    let prev = state.display_count.swap(count, Ordering::SeqCst);
+                    if profiles::display_count_changed(prev, count) {
+                        commands::auto_switch_profile(&app, &state, count);
+                        commands::emit_status(&app);
+                    }
+                }
                 if let Some(notice) = window::check_displays(&w, &state) {
                     *lock(&state.display_notice) = notice;
                     commands::emit_status(&app);
@@ -152,6 +164,7 @@ fn spawn_system_thread(app: AppHandle) -> (mpsc::Sender<()>, JoinHandle<()>) {
         .name("flip-system-monitor".into())
         .spawn(move || {
             let mut monitor = SystemMonitor::new();
+            let mut alerts = AlertEngine::new();
             loop {
                 let state = app.state::<AppState>();
                 if state.is_shutting_down() {
@@ -160,6 +173,15 @@ fn spawn_system_thread(app: AppHandle) -> (mpsc::Sender<()>, JoinHandle<()>) {
                 let cfg = state.settings().system.clone();
                 let snap = monitor.sample(cfg.gpu, cfg.temps);
                 *lock(&state.system) = Some(snap.clone());
+                // Opt-in threshold alerts (notify only; FLIP never acts on the system).
+                let alert_cfg = state.settings().alerts.clone();
+                if alert_cfg.cpu || alert_cfg.memory || alert_cfg.disk {
+                    for a in alerts.evaluate(Utc::now(), &snap, &alert_cfg) {
+                        if let Err(e) = app.notification().builder().title(&a.title).body(&a.body).show() {
+                            log::warn!("alert notification failed: {e}");
+                        }
+                    }
+                }
                 let visible = window::main_window(&app).and_then(|w| w.is_visible().ok()).unwrap_or(true);
                 if visible {
                     let _ = app.emit(EVT_SYSTEM, &snap);

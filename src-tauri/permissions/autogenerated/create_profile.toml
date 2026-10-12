@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-profile"
+description = "Enables the create_profile command without any pre-configured scope."
+commands.allow = ["create_profile"]
+
+[[permission]]
+identifier = "deny-create-profile"
+description = "Denies the create_profile command without any pre-configured scope."
+commands.deny = ["create_profile"]

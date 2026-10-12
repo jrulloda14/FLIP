@@ -14,9 +14,10 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
+use super::profiles::{self, ProfileSettings};
 use crate::paths::atomic_write;
 
-pub const SETTINGS_VERSION: u32 = 4;
+pub const SETTINGS_VERSION: u32 = 5;
 pub const MAX_CITIES: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -462,8 +463,12 @@ pub struct Placement {
 pub struct WindowSettings {
     pub mode: DisplayMode,
     pub layer: WindowLayer,
-    /// Monitor device name (e.g. `\\.\DISPLAY2`). `None` = primary monitor.
+    /// Monitor device name (e.g. `\\.\DISPLAY2`). `None` = primary monitor. Can change when
+    /// monitors are re-plugged, so `display_id` is matched first.
     pub display: Option<String>,
+    /// Stable monitor id (Windows monitor device-interface path), matched before `display`.
+    #[serde(deserialize_with = "lenient")]
+    pub display_id: Option<String>,
     pub launch_on_startup: bool,
     pub start_hidden: bool,
     /// The ✕ control hides FLIP instead of quitting.
@@ -497,6 +502,7 @@ impl Default for WindowSettings {
             mode: DisplayMode::Windowed,
             layer: WindowLayer::Desktop,
             display: None,
+            display_id: None,
             launch_on_startup: false,
             start_hidden: false,
             close_to_tray: true,
@@ -517,17 +523,64 @@ pub struct ShortcutSettings {
     pub settings: String,
     pub layout: String,
     pub focus: String,
+    /// Next profile.
+    pub profile: String,
 }
 
 impl Default for ShortcutSettings {
     fn default() -> Self {
-        Self { toggle: "Ctrl+Alt+F".into(), settings: "Ctrl+Alt+S".into(), layout: "Ctrl+Alt+L".into(), focus: "Ctrl+Alt+P".into() }
+        Self {
+            toggle: "Ctrl+Alt+F".into(),
+            settings: "Ctrl+Alt+S".into(),
+            layout: "Ctrl+Alt+L".into(),
+            focus: "Ctrl+Alt+P".into(),
+            profile: "Ctrl+Alt+N".into(),
+        }
     }
 }
 
 impl ShortcutSettings {
-    pub fn entries(&self) -> [(&'static str, &str); 4] {
-        [("toggle", &self.toggle), ("settings", &self.settings), ("layout", &self.layout), ("focus", &self.focus)]
+    pub fn entries(&self) -> [(&'static str, &str); 5] {
+        [
+            ("toggle", &self.toggle),
+            ("settings", &self.settings),
+            ("layout", &self.layout),
+            ("focus", &self.focus),
+            ("profile", &self.profile),
+        ]
+    }
+}
+
+/// Opt-in threshold notifications. Off by default; FLIP never acts on the system, it only notifies.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AlertSettings {
+    pub cpu: bool,
+    /// Alert when total CPU stays at or above this percentage…
+    pub cpu_percent: u32,
+    /// …for this many minutes in a row.
+    pub cpu_minutes: u32,
+    pub memory: bool,
+    pub memory_percent: u32,
+    pub disk: bool,
+    /// Alert when any fixed disk has less free space than this percentage.
+    pub disk_free_percent: u32,
+    /// Minimum minutes between two alerts of the same kind.
+    pub cooldown_minutes: u32,
+}
+
+impl Default for AlertSettings {
+    fn default() -> Self {
+        Self {
+            cpu: false,
+            cpu_percent: 90,
+            cpu_minutes: 2,
+            memory: false,
+            memory_percent: 90,
+            disk: false,
+            disk_free_percent: 10,
+            cooldown_minutes: 30,
+        }
     }
 }
 
@@ -580,6 +633,8 @@ pub struct Settings {
     pub system: SystemSettings,
     pub window: WindowSettings,
     pub shortcuts: ShortcutSettings,
+    pub alerts: AlertSettings,
+    pub profiles: ProfileSettings,
     pub notifications: NotificationSettings,
 }
 
@@ -596,6 +651,8 @@ impl Default for Settings {
             system: SystemSettings::default(),
             window: WindowSettings::default(),
             shortcuts: ShortcutSettings::default(),
+            alerts: AlertSettings::default(),
+            profiles: ProfileSettings::default(),
             notifications: NotificationSettings::default(),
         }
     }
@@ -620,8 +677,36 @@ fn snap_u32(v: u32, allowed: &[u32], fallback: u32) -> u32 {
 impl Settings {
     /// Repairs invalid values in place. Returns a list of what was changed, for logging and the UI notice.
     pub fn validate(&mut self, allow_demo: bool) -> Vec<String> {
+        let mut fixes = self.validate_core(allow_demo);
+        profiles::validate(self, allow_demo, &mut fixes);
+        // The active profile always mirrors the live layout.
+        profiles::sync_active(self);
+        fixes
+    }
+
+    /// Validates everything except the profile list.
+    pub fn validate_core(&mut self, allow_demo: bool) -> Vec<String> {
         let mut fixes = Vec::new();
         self.version = SETTINGS_VERSION;
+
+        let al = &mut self.alerts;
+        for (v, lo, hi, def) in [
+            (&mut al.cpu_percent, 50, 100, 90),
+            (&mut al.cpu_minutes, 1, 60, 2),
+            (&mut al.memory_percent, 50, 99, 90),
+            (&mut al.disk_free_percent, 1, 50, 10),
+            (&mut al.cooldown_minutes, 5, 1440, 30),
+        ] {
+            if !(lo..=hi).contains(v) {
+                *v = if *v == 0 { def } else { (*v).clamp(lo, hi) };
+                fixes.push("alert threshold reset".into());
+            }
+        }
+        if let Some(id) = &self.window.display_id {
+            if id.trim().is_empty() || id.len() > 512 {
+                self.window.display_id = None;
+            }
+        }
 
         let c = &mut self.clock;
         if !(150..=600).contains(&c.animation_ms) {
@@ -681,6 +766,7 @@ impl Settings {
             (&mut sc.settings, defaults.settings),
             (&mut sc.layout, defaults.layout),
             (&mut sc.focus, defaults.focus),
+            (&mut sc.profile, defaults.profile),
         ] {
             if !is_valid_shortcut(field) {
                 fixes.push(format!("invalid shortcut '{field}' reset to {fallback}"));
@@ -870,6 +956,13 @@ pub fn migrate(mut v: Value) -> Value {
     v
 }
 
+/// Migration steps that need the typed settings. `from_version` is the file's original version.
+pub fn finish_migration(s: &mut Settings, from_version: u64) {
+    if from_version < 5 {
+        profiles::upgrade_from_pre_profiles(s);
+    }
+}
+
 pub struct Loaded {
     pub settings: Settings,
     /// Shown once in the UI when something had to be repaired.
@@ -887,9 +980,16 @@ pub fn load(path: &Path, allow_demo: bool) -> Loaded {
             return Loaded { settings: Settings::default(), notice: Some("SETTINGS UNREADABLE · USING DEFAULTS".into()) };
         }
     };
-    let parsed = serde_json::from_str::<Value>(&raw).map(migrate).and_then(serde_json::from_value::<Settings>);
+    let mut from_version = SETTINGS_VERSION as u64;
+    let parsed = serde_json::from_str::<Value>(&raw)
+        .map(|v| {
+            from_version = v.get("version").and_then(Value::as_u64).unwrap_or(0);
+            migrate(v)
+        })
+        .and_then(serde_json::from_value::<Settings>);
     match parsed {
         Ok(mut s) => {
+            finish_migration(&mut s, from_version);
             let fixes = s.validate(allow_demo);
             if !fixes.is_empty() {
                 log::warn!("settings repaired: {}", fixes.join("; "));
@@ -1002,7 +1102,7 @@ mod tests {
             "ai": { "refreshMinutes": 5, "providers": [ { "id": "claude" } ] }
         });
         let s: Settings = serde_json::from_value(migrate(v0)).unwrap();
-        assert_eq!(s.version, 4);
+        assert_eq!(s.version, 5);
         assert_eq!(s.focus.focus_minutes, 50);
         assert_eq!(s.focus.short_minutes, 10);
         assert_eq!(s.focus.long_minutes, 20);
@@ -1053,6 +1153,8 @@ mod tests {
         let mut s = Settings::default();
         s.clock.seconds = true;
         s.cities.truncate(2);
+        // The app always validates before saving (which also syncs the active profile).
+        assert!(s.validate(false).is_empty());
         save(&p, &s).unwrap();
         let l = load(&p, false);
         assert_eq!(l.settings, s);
@@ -1068,7 +1170,7 @@ mod tests {
             "appearance": { "font": "cascadia" }
         });
         let s: Settings = serde_json::from_value(migrate(v1)).unwrap();
-        assert_eq!(s.version, 4);
+        assert_eq!(s.version, 5);
         assert_eq!(s.window.mode, DisplayMode::Windowed);
         assert_eq!(s.window.layer, WindowLayer::Desktop);
         assert!(s.window.start_hidden);
@@ -1118,7 +1220,7 @@ mod tests {
             "modules": { "preset": "clock" }
         });
         let s: Settings = serde_json::from_value(migrate(v2)).unwrap();
-        assert_eq!(s.version, 4);
+        assert_eq!(s.version, 5);
         assert_eq!(s.clock.template, ClockTemplate::DotMatrix);
         assert!(!s.clock.h24 && s.clock.seconds && !s.clock.ghost_dots);
         assert_eq!(s.clock.dot_shape, DotShape::Square);
@@ -1200,12 +1302,65 @@ mod tests {
         let placed = json!({ "version": 3, "window": { "windowedRect": { "x": 5, "y": 5, "width": 900, "height": 700, "monitor": null } },
                              "modules": { "layout": "auto" } });
         let s: Settings = serde_json::from_value(migrate(placed)).unwrap();
-        assert_eq!(s.version, 4);
+        assert_eq!(s.version, 5);
         assert_eq!(s.window.windowed_region, None);
         assert_eq!(s.modules.layout, LayoutPref::Auto, "existing density choice is kept");
         let fresh: Settings = serde_json::from_value(migrate(json!({ "version": 3, "window": {} }))).unwrap();
         assert_eq!(fresh.window.windowed_region, Some(Region::RightHalf));
         let bad: Settings = serde_json::from_value(json!({ "version": 4, "window": { "windowedRegion": "sideways" } })).unwrap();
         assert_eq!(bad.window.windowed_region, None, "unknown region falls back to none, not an error");
+    }
+
+    #[test]
+    fn v4_file_upgrades_to_profiles_without_changing_the_layout() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let v4 = json!({
+            "version": 4,
+            "clock": { "template": "minimal", "seconds": true },
+            "modules": { "preset": "system", "layout": "compact" },
+            "window": { "mode": "compact", "layer": "top", "compactRegion": "bottomRight" },
+            "shortcuts": { "toggle": "Ctrl+Alt+F", "settings": "Ctrl+Alt+S", "layout": "Ctrl+Alt+L", "focus": "Ctrl+Alt+P" }
+        });
+        fs::write(&p, v4.to_string()).unwrap();
+        let l = load(&p, false);
+        let s = l.settings;
+        assert_eq!(s.version, 5);
+        assert_eq!(s.clock.template, ClockTemplate::Minimal);
+        assert_eq!(s.window.mode, DisplayMode::Compact);
+        assert_eq!(s.window.compact_region, Some(Region::BottomRight));
+        assert_eq!(s.profiles.active, "custom");
+        let custom = s.profiles.items.iter().find(|x| x.id == "custom").unwrap();
+        assert_eq!(custom.clock.template, ClockTemplate::Minimal);
+        assert_eq!(custom.modules.preset, LayoutPreset::System);
+        assert_eq!(s.shortcuts.profile, "Ctrl+Alt+N", "new shortcut gets its default");
+        assert!(!s.alerts.cpu && !s.alerts.memory && !s.alerts.disk, "alerts stay opt-in");
+    }
+
+    #[test]
+    fn v5_round_trip_keeps_active_profile() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut s = Settings::default();
+        profiles::apply(&mut s, &profiles::builtin("ambient"));
+        s.profiles.active = "ambient".into();
+        s.validate(false);
+        save(&p, &s).unwrap();
+        let l = load(&p, false);
+        assert_eq!(l.settings.profiles.active, "ambient");
+        assert_eq!(l.settings.window.mode, DisplayMode::Ambient);
+        assert!(l.notice.is_none());
+    }
+
+    #[test]
+    fn alert_thresholds_are_clamped() {
+        let mut s = Settings::default();
+        s.alerts.cpu_percent = 5;
+        s.alerts.disk_free_percent = 0;
+        s.alerts.cooldown_minutes = 99999;
+        s.validate(false);
+        assert_eq!(s.alerts.cpu_percent, 50);
+        assert_eq!(s.alerts.disk_free_percent, 10);
+        assert_eq!(s.alerts.cooldown_minutes, 1440);
     }
 }

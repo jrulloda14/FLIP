@@ -83,8 +83,12 @@ pub fn default_region(mode: DisplayMode) -> Region {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DisplayInfo {
-    /// Device name, e.g. `\\.\DISPLAY2`. Stored in settings.
+    /// Device name, e.g. `\\.\DISPLAY2`. Can change when monitors are re-plugged.
     pub id: String,
+    /// Stable monitor id (Windows device-interface path); preferred for matching.
+    pub stable_id: Option<String>,
+    /// Monitor model name when Windows reports one (e.g. "DELL U2723QE").
+    pub name: Option<String>,
     pub label: String,
     pub width: u32,
     pub height: u32,
@@ -95,6 +99,8 @@ pub struct DisplayInfo {
 #[derive(Debug, Clone)]
 struct Mon {
     id: String,
+    stable: Option<String>,
+    name: Option<String>,
     work: Rect,
     size: (u32, u32),
     scale: f64,
@@ -110,8 +116,11 @@ fn monitors<R: Runtime>(w: &WebviewWindow<R>) -> Vec<Mon> {
         .map(|(i, m): (usize, &Monitor)| {
             let a = m.work_area();
             let id = m.name().cloned().unwrap_or_else(|| format!("DISPLAY{}", i + 1));
+            let (stable, name) = identity::monitor_identity(&id);
             Mon {
                 primary: primary.as_deref() == Some(id.as_str()),
+                stable,
+                name,
                 id,
                 work: Rect { x: a.position.x as i64, y: a.position.y as i64, w: a.size.width as i64, h: a.size.height as i64 },
                 size: (m.size().width, m.size().height),
@@ -121,17 +130,20 @@ fn monitors<R: Runtime>(w: &WebviewWindow<R>) -> Vec<Mon> {
         .collect()
 }
 
-/// Human label: `DISPLAY 2 · 2560×1440 · PRIMARY`.
-pub fn display_label(id: &str, size: (u32, u32), primary: bool) -> String {
+/// Human label: `DISPLAY 2 · DELL U2723QE · 2560×1440 · PRIMARY` (model only when known).
+pub fn display_label(id: &str, name: Option<&str>, size: (u32, u32), primary: bool) -> String {
     let n = id.trim_start_matches(r"\\.\").replace("DISPLAY", "DISPLAY ");
-    format!("{} · {}×{}{}", n.trim(), size.0, size.1, if primary { " · PRIMARY" } else { "" })
+    let model = name.map(|m| format!(" · {}", m.to_uppercase())).unwrap_or_default();
+    format!("{}{model} · {}×{}{}", n.trim(), size.0, size.1, if primary { " · PRIMARY" } else { "" })
 }
 
 pub fn list_displays<R: Runtime>(w: &WebviewWindow<R>) -> Vec<DisplayInfo> {
     monitors(w)
         .into_iter()
         .map(|m| DisplayInfo {
-            label: display_label(&m.id, m.size, m.primary),
+            label: display_label(&m.id, m.name.as_deref(), m.size, m.primary),
+            stable_id: m.stable,
+            name: m.name,
             id: m.id,
             width: m.size.0,
             height: m.size.1,
@@ -141,18 +153,76 @@ pub fn list_displays<R: Runtime>(w: &WebviewWindow<R>) -> Vec<DisplayInfo> {
         .collect()
 }
 
+/// What `choose_display` needs to know about a connected monitor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DisplayKey {
+    pub device: String,
+    pub stable: Option<String>,
+    pub primary: bool,
+}
+
 /// Picks the configured display, or the primary one when it is missing. Returns (index, fell_back).
-pub fn choose_display(ids: &[(String, bool)], wanted: Option<&str>) -> Option<(usize, bool)> {
-    if ids.is_empty() {
+///
+/// A stable id (monitor device-interface path) is matched first. The device name
+/// (`\\.\DISPLAYn`) is only used when no stable id was saved (settings from before 0.3.0),
+/// because device names can be reassigned to a different monitor after re-plugging.
+pub fn choose_display(keys: &[DisplayKey], wanted_id: Option<&str>, wanted_device: Option<&str>) -> Option<(usize, bool)> {
+    if keys.is_empty() {
         return None;
     }
-    if let Some(w) = wanted {
-        if let Some(i) = ids.iter().position(|(id, _)| id == w) {
-            return Some((i, false));
-        }
+    let found = match (wanted_id, wanted_device) {
+        (Some(id), _) => keys.iter().position(|k| k.stable.as_deref() == Some(id)),
+        (None, Some(dev)) => keys.iter().position(|k| k.device == dev),
+        (None, None) => None,
+    };
+    if let Some(i) = found {
+        return Some((i, false));
     }
-    let primary = ids.iter().position(|(_, p)| *p).unwrap_or(0);
-    Some((primary, wanted.is_some()))
+    let primary = keys.iter().position(|k| k.primary).unwrap_or(0);
+    Some((primary, wanted_id.is_some() || wanted_device.is_some()))
+}
+
+fn keys(mons: &[Mon]) -> Vec<DisplayKey> {
+    mons.iter().map(|m| DisplayKey { device: m.id.clone(), stable: m.stable.clone(), primary: m.primary }).collect()
+}
+
+/// The monitor a window setting targets, and whether FLIP fell back to the primary one.
+fn target(mons: &[Mon], s: &WindowSettings) -> Option<(usize, bool)> {
+    choose_display(&keys(mons), s.display_id.as_deref(), s.display.as_deref())
+}
+
+/// Number of connected displays (for profile auto-switching).
+pub fn display_count<R: Runtime>(w: &WebviewWindow<R>) -> usize {
+    w.available_monitors().map(|m| m.len()).unwrap_or(0)
+}
+
+mod identity {
+    /// (stable device-interface id, model name) for a GDI device name such as `\\.\DISPLAY2`.
+    #[cfg(windows)]
+    pub fn monitor_identity(device: &str) -> (Option<String>, Option<String>) {
+        use windows::core::PCWSTR;
+        use windows::Win32::Graphics::Gdi::{EnumDisplayDevicesW, DISPLAY_DEVICEW};
+        use windows::Win32::UI::WindowsAndMessaging::EDD_GET_DEVICE_INTERFACE_NAME;
+        let wide: Vec<u16> = device.encode_utf16().chain(std::iter::once(0)).collect();
+        let text = |b: &[u16]| {
+            let n = b.iter().position(|&c| c == 0).unwrap_or(b.len());
+            let t = String::from_utf16_lossy(&b[..n]).trim().to_string();
+            (!t.is_empty()).then_some(t)
+        };
+        // Index 0 is the first monitor attached to this display output.
+        let mut dd = DISPLAY_DEVICEW { cb: std::mem::size_of::<DISPLAY_DEVICEW>() as u32, ..Default::default() };
+        let ok = unsafe { EnumDisplayDevicesW(PCWSTR(wide.as_ptr()), 0, &mut dd, EDD_GET_DEVICE_INTERFACE_NAME) }.as_bool();
+        if !ok {
+            return (None, None);
+        }
+        let name = text(&dd.DeviceString).filter(|n| !n.to_ascii_lowercase().contains("generic"));
+        (text(&dd.DeviceID), name)
+    }
+
+    #[cfg(not(windows))]
+    pub fn monitor_identity(_device: &str) -> (Option<String>, Option<String>) {
+        (None, None)
+    }
 }
 
 pub fn main_window<R: Runtime>(app: &AppHandle<R>) -> Option<WebviewWindow<R>> {
@@ -168,8 +238,7 @@ fn set_rect<R: Runtime>(w: &WebviewWindow<R>, r: Rect) {
 /// display is missing and FLIP fell back to the primary monitor.
 pub fn place<R: Runtime>(w: &WebviewWindow<R>, s: &WindowSettings) -> Option<String> {
     let mons = monitors(w);
-    let ids: Vec<(String, bool)> = mons.iter().map(|m| (m.id.clone(), m.primary)).collect();
-    let (idx, fell_back) = choose_display(&ids, s.display.as_deref())?;
+    let (idx, fell_back) = target(&mons, s)?;
     let mon = &mons[idx];
     let margin = (REGION_MARGIN * mon.scale) as i64;
     let saved = match s.mode {
@@ -197,8 +266,7 @@ pub fn place<R: Runtime>(w: &WebviewWindow<R>, s: &WindowSettings) -> Option<Str
 pub fn apply_region<R: Runtime>(w: &WebviewWindow<R>, state: &AppState, region: Region) {
     let s = state.settings().window.clone();
     let mons = monitors(w);
-    let ids: Vec<(String, bool)> = mons.iter().map(|m| (m.id.clone(), m.primary)).collect();
-    let Some((idx, _)) = choose_display(&ids, s.display.as_deref()) else { return };
+    let Some((idx, _)) = target(&mons, &s) else { return };
     let mon = &mons[idx];
     let r = region_rect(&mon.work, region, (REGION_MARGIN * mon.scale) as i64);
     {
@@ -221,8 +289,7 @@ fn same_rect(a: &Rect, b: &Rect) -> bool {
 fn still_in_region<R: Runtime>(w: &WebviewWindow<R>, s: &WindowSettings, current: &Rect) -> bool {
     let Some(region) = s.region() else { return false };
     let mons = monitors(w);
-    let ids: Vec<(String, bool)> = mons.iter().map(|m| (m.id.clone(), m.primary)).collect();
-    let Some((idx, _)) = choose_display(&ids, s.display.as_deref()) else { return false };
+    let Some((idx, _)) = target(&mons, s) else { return false };
     let mon = &mons[idx];
     same_rect(current, &region_rect(&mon.work, region, (REGION_MARGIN * mon.scale) as i64))
 }
@@ -258,6 +325,8 @@ pub fn capture_placement<R: Runtime>(w: &WebviewWindow<R>, state: &AppState) {
         if cleared {
             *region = None;
         }
+        // The active profile remembers where its window is.
+        super::profiles::sync_active(&mut s);
         cleared
     };
     if region_cleared {
@@ -271,8 +340,7 @@ pub fn capture_placement<R: Runtime>(w: &WebviewWindow<R>, state: &AppState) {
 pub fn check_displays<R: Runtime>(w: &WebviewWindow<R>, state: &AppState) -> Option<Option<String>> {
     let s = state.settings().window.clone();
     let mons = monitors(w);
-    let ids: Vec<(String, bool)> = mons.iter().map(|m| (m.id.clone(), m.primary)).collect();
-    let (_, fell_back) = choose_display(&ids, s.display.as_deref())?;
+    let (_, fell_back) = target(&mons, &s)?;
     let was = state.display_fallback.swap(fell_back, Ordering::SeqCst);
     let off_screen = {
         let (Ok(pos), Ok(size)) = (w.outer_position(), w.outer_size()) else { return None };
@@ -324,7 +392,7 @@ pub fn valid_panel_view(v: &str) -> bool {
     match v.split_once(':') {
         None => matches!(v, "settings" | "system" | "timer"),
         Some(("settings", tab)) => {
-            matches!(tab, "DISPLAY" | "CLOCK" | "LOCATIONS" | "AI" | "FOCUS" | "MODULES" | "SYSTEM" | "KEYS")
+            matches!(tab, "DISPLAY" | "PROFILES" | "CLOCK" | "LOCATIONS" | "AI" | "FOCUS" | "MODULES" | "SYSTEM" | "KEYS")
         }
         Some(("ai", id)) => matches!(id, "claude" | "codex"),
         _ => false,
@@ -431,17 +499,30 @@ mod tests {
 
     #[test]
     fn display_choice_and_fallback() {
-        let ids = vec![(r"\\.\DISPLAY1".to_string(), true), (r"\\.\DISPLAY2".to_string(), false)];
-        assert_eq!(choose_display(&ids, Some(r"\\.\DISPLAY2")), Some((1, false)));
-        assert_eq!(choose_display(&ids, None), Some((0, false)));
-        assert_eq!(choose_display(&ids, Some(r"\\.\DISPLAY3")), Some((0, true)), "missing display falls back to primary");
-        assert_eq!(choose_display(&[], None), None);
+        let k = |d: &str, st: Option<&str>, p: bool| DisplayKey { device: d.into(), stable: st.map(Into::into), primary: p };
+        let keys = vec![k(r"\\.\DISPLAY1", Some("MON-A"), true), k(r"\\.\DISPLAY2", Some("MON-B"), false)];
+        assert_eq!(choose_display(&keys, Some("MON-B"), None), Some((1, false)));
+        assert_eq!(choose_display(&keys, None, Some(r"\\.\DISPLAY2")), Some((1, false)), "legacy device-name match");
+        assert_eq!(choose_display(&keys, None, None), Some((0, false)));
+        assert_eq!(choose_display(&keys, Some("MON-C"), None), Some((0, true)), "missing monitor falls back to primary");
+        assert_eq!(choose_display(&[], None, None), None);
+    }
+
+    #[test]
+    fn stable_id_beats_reassigned_device_names() {
+        // After re-plugging, Windows swapped the device names: MON-B is now DISPLAY1.
+        let keys = vec![
+            DisplayKey { device: r"\\.\DISPLAY1".into(), stable: Some("MON-B".into()), primary: false },
+            DisplayKey { device: r"\\.\DISPLAY2".into(), stable: Some("MON-A".into()), primary: true },
+        ];
+        assert_eq!(choose_display(&keys, Some("MON-B"), Some(r"\\.\DISPLAY2")), Some((0, false)));
     }
 
     #[test]
     fn labels_and_defaults() {
-        assert_eq!(display_label(r"\\.\DISPLAY2", (2560, 1440), false), "DISPLAY 2 · 2560×1440");
-        assert_eq!(display_label(r"\\.\DISPLAY1", (1920, 1080), true), "DISPLAY 1 · 1920×1080 · PRIMARY");
+        assert_eq!(display_label(r"\\.\DISPLAY2", None, (2560, 1440), false), "DISPLAY 2 · 2560×1440");
+        assert_eq!(display_label(r"\\.\DISPLAY1", None, (1920, 1080), true), "DISPLAY 1 · 1920×1080 · PRIMARY");
+        assert_eq!(display_label(r"\\.\DISPLAY2", Some("Dell U2723QE"), (2560, 1440), false), "DISPLAY 2 · DELL U2723QE · 2560×1440");
         assert_eq!(default_region(DisplayMode::Ambient), Region::Full);
         assert_eq!(default_region(DisplayMode::Compact), Region::TopRight);
     }
@@ -454,5 +535,17 @@ mod tests {
         for bad in ["", "settings:../../x", "ai:openai", "file", "timer:1"] {
             assert!(!valid_panel_view(bad), "{bad}");
         }
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn live_monitor_identity_is_stable_and_not_a_bare_index() {
+        let (id, _name) = identity::monitor_identity(r"\\.\DISPLAY1");
+        if let Some(id) = id {
+            assert!(!id.contains("DISPLAY1"), "the stable id must not be the GDI device name");
+            assert!(id.len() > 20);
+            assert_eq!(identity::monitor_identity(r"\\.\DISPLAY1").0.as_deref(), Some(id.as_str()), "repeatable");
+        }
+        assert_eq!(identity::monitor_identity(r"\\.\DISPLAY99"), (None, None));
     }
 }

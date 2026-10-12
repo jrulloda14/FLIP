@@ -15,7 +15,8 @@ vi.mock('@tauri-apps/api/event', () => ({
   },
 }));
 
-const { default: App, layoutFor, presetFor, clockPitch } = await import('./App');
+const { default: App, layoutFor, presetFor, clockPitch, nextProfileId } = await import('./App');
+const { profileSummary, displayFor } = await import('./overlays/ProfilesTab');
 const { draftToWindows } = await import('./overlays/ProviderDetail');
 const { validShortcut } = await import('./overlays/SettingsWindow');
 
@@ -63,7 +64,7 @@ describe('dashboard window', () => {
     expect(await screen.findByRole('timer', { name: '12:43' })).toBeInTheDocument();
     expect(screen.getByText('TUE 06 OCT')).toBeInTheDocument();
     expect(screen.getByText('LONDON')).toBeInTheDocument();
-    expect(screen.getByText('DISPLAY 1 · 1920×1080')).toBeInTheDocument();
+    expect(screen.getByText('DEVELOPER · DISPLAY 1 · 1920×1080')).toBeInTheDocument(); // active profile + display
     expect(screen.getAllByText('NOT CONNECTED · SETTINGS › AI')).toHaveLength(2);
     // No overlay is ever rendered inside the dashboard.
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -233,7 +234,9 @@ describe('panel window', () => {
     await screen.findByRole('dialog', { name: 'Settings' });
     expect(screen.getByRole('radio', { name: 'RIGHT HALF' })).toHaveAttribute('aria-checked', 'true'); // default region
     expect(screen.getByRole('radio', { name: 'RIGHT HALF' })).toHaveClass('is-on');
-    await userEvent.selectOptions(screen.getByLabelText('Display'), 'DISPLAY2');
+    await userEvent.selectOptions(screen.getByLabelText('Display'), 'MON-B');
+    // Saved by stable monitor id, with the device name as a fallback.
+    expect(lastSettings().window.displayId).toBe('MON-B');
     expect(lastSettings().window.display).toBe('DISPLAY2');
     await userEvent.click(screen.getByRole('radio', { name: 'AMBIENT' }));
     expect(lastSettings().window.mode).toBe('ambient');
@@ -263,11 +266,81 @@ describe('panel window', () => {
 
   it('flags a display that is no longer connected', async () => {
     const b = bootstrap();
-    b.settings.window.display = 'DISPLAY3';
+    b.settings.window.display = 'DISPLAY1';
+    b.settings.window.displayId = 'MON-GONE'; // stable id wins over a reassigned device name
     invoke.mockImplementation(async (cmd: string) => (cmd === 'get_bootstrap' ? b : undefined));
     render(<App surface="panel" />);
     await screen.findByRole('dialog', { name: 'Settings' });
-    expect(screen.getByText('DISPLAY3 · NOT CONNECTED')).toBeInTheDocument();
+    expect(screen.getByLabelText('Display')).toHaveValue('__missing');
+    expect(screen.getByText('SAVED DISPLAY · NOT CONNECTED')).toBeInTheDocument();
+    expect(screen.getByText(/showing on primary until it returns/)).toBeInTheDocument();
+  });
+
+  it('lists profiles and switches, creates, duplicates, renames, deletes and resets them', async () => {
+    const b = bootstrap();
+    b.settings.profiles.items.push({ ...b.settings.profiles.items[0]!, id: 'user-1', name: 'DESK', builtin: false });
+    b.panelView = 'settings:PROFILES';
+    invoke.mockImplementation(async (cmd: string) => (cmd === 'get_bootstrap' ? b : b.settings));
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'Settings' });
+    const dev = screen.getByTestId('profile-developer');
+    expect(within(dev).getByText('ACTIVE')).toBeInTheDocument();
+    expect(within(dev).getByText('WINDOWED · DOT MATRIX · 4 MODULES · PRIMARY')).toBeInTheDocument();
+    expect(within(screen.getByTestId('profile-gaming')).getByText(/COMPACT · SEVEN SEGMENT/)).toBeInTheDocument();
+    // Built-ins can be reset (with confirmation) but not renamed or deleted.
+    expect(screen.queryByRole('button', { name: 'Delete GAMING' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Reset GAMING' }));
+    await userEvent.click(screen.getByRole('button', { name: 'CONFIRM RESET' }));
+    expect(invoke).toHaveBeenCalledWith('reset_profile', { id: 'gaming' });
+    await userEvent.click(screen.getByRole('button', { name: 'Use AMBIENT' }));
+    expect(invoke).toHaveBeenCalledWith('activate_profile', { id: 'ambient' });
+    await userEvent.click(screen.getByRole('button', { name: 'Duplicate FOCUS' }));
+    expect(invoke).toHaveBeenCalledWith('create_profile', { name: 'FOCUS COPY', from: 'focus' });
+    await userEvent.type(screen.getByLabelText('New profile name'), 'Laptop{Enter}');
+    expect(invoke).toHaveBeenCalledWith('create_profile', { name: 'Laptop', from: null });
+    await userEvent.click(screen.getByRole('button', { name: 'Rename DESK' }));
+    const input = screen.getByLabelText('New name for DESK');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'Studio{Enter}');
+    expect(invoke).toHaveBeenCalledWith('rename_profile', { id: 'user-1', name: 'Studio' });
+    await userEvent.click(screen.getByRole('button', { name: 'Delete DESK' }));
+    expect(invoke).not.toHaveBeenCalledWith('delete_profile', expect.anything());
+    await userEvent.click(screen.getByRole('button', { name: 'CONFIRM DELETE' }));
+    expect(invoke).toHaveBeenCalledWith('delete_profile', { id: 'user-1' });
+  });
+
+  it('sets auto-switch rules for display changes (off by default)', async () => {
+    const b = bootstrap();
+    b.panelView = 'settings:PROFILES';
+    invoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) =>
+      cmd === 'get_bootstrap' ? b : cmd === 'update_settings' ? (args!.settings as Settings) : undefined,
+    );
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'Settings' });
+    expect(screen.queryByLabelText('Profile for one display')).not.toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'Auto-switch profiles' })).getByRole('radio', { name: 'ON' }));
+    expect(lastSettings().profiles.autoSwitch.enabled).toBe(true);
+    await userEvent.selectOptions(screen.getByLabelText('Profile for one display'), 'focus');
+    await userEvent.selectOptions(screen.getByLabelText('Profile for two or more displays'), 'developer');
+    expect(lastSettings().profiles.autoSwitch).toEqual({ enabled: true, singleDisplay: 'focus', multiDisplay: 'developer' });
+  });
+
+  it('configures opt-in alerts on the SYSTEM tab', async () => {
+    const b = bootstrap();
+    b.panelView = 'settings:SYSTEM';
+    invoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) =>
+      cmd === 'get_bootstrap' ? b : cmd === 'update_settings' ? (args!.settings as Settings) : undefined,
+    );
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'Settings' });
+    expect(screen.getByText(/never closes apps/)).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'CPU threshold' })).not.toBeInTheDocument();
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'High CPU alert' })).getByRole('radio', { name: 'ON' }));
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'CPU threshold' })).getByRole('radio', { name: '95%' }));
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'CPU duration' })).getByRole('radio', { name: '5 MIN' }));
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'Low disk space alert' })).getByRole('radio', { name: 'ON' }));
+    await userEvent.click(within(screen.getByRole('radiogroup', { name: 'Alert cooldown' })).getByRole('radio', { name: '1 H' }));
+    expect(lastSettings().alerts).toMatchObject({ cpu: true, cpuPercent: 95, cpuMinutes: 5, disk: true, memory: false, cooldownMinutes: 60 });
   });
 
   it('needs confirmation before restoring all defaults; reset layout is direct', async () => {
@@ -412,5 +485,42 @@ describe('validation helpers', () => {
     expect(draftToWindows([{ key: 'TOO-LONG', used: '1', resetHours: '' }], now)).toHaveProperty('error');
     expect(draftToWindows([{ key: '5H', used: '1', resetHours: '-3' }], now)).toHaveProperty('error');
     expect(draftToWindows([], now)).toEqual({ error: 'ENTER AT LEAST ONE WINDOW' });
+  });
+});
+
+describe('profiles helpers', () => {
+  it('cycles to the next profile and wraps around', () => {
+    const p = bootstrap().settings.profiles;
+    expect(nextProfileId(p)).toBe('ambient');
+    expect(nextProfileId({ ...p, active: 'custom' })).toBe('developer');
+  });
+
+  it('finds a profile display by stable id and reports a missing one', () => {
+    const displays = bootstrap().status.displays;
+    const w = bootstrap().settings.window;
+    expect(displayFor(w, displays)).toBeNull();
+    expect(displayFor({ ...w, displayId: 'MON-B', display: 'DISPLAY1' }, displays)).toMatchObject({ id: 'DISPLAY2' });
+    expect(displayFor({ ...w, displayId: 'MON-X', display: 'DISPLAY1' }, displays)).toBe('missing');
+    const p = bootstrap().settings.profiles.items[0]!;
+    expect(profileSummary({ ...p, window: { ...p.window, displayId: 'MON-B' } }, displays)).toMatch(/· TEST 27$/);
+    expect(profileSummary({ ...p, window: { ...p.window, displayId: 'MON-X' } }, displays)).toMatch(/DISPLAY NOT CONNECTED/);
+  });
+});
+
+describe('system detail', () => {
+  it('shows disk activity, GPU memory, available RAM and groups limitations by kind', async () => {
+    const b = bootstrap({ panelView: 'system' });
+    b.system!.limitations = [
+      { metric: 'CPU TEMP', reason: 'No documented API.', kind: 'unsupported' },
+      { metric: 'GPU LOAD', reason: 'Temporary read failure', kind: 'error' },
+    ];
+    invoke.mockImplementation(async (cmd: string) => (cmd === 'get_bootstrap' ? b : undefined));
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'System monitor detail' });
+    expect(screen.getByText('DISK ACTIVITY · ALL VOLUMES')).toBeInTheDocument();
+    expect(screen.getByText('512 MB / 4.0 GB · 13%')).toBeInTheDocument();
+    expect(screen.getByText('MEMORY AVAILABLE')).toBeInTheDocument();
+    expect(within(screen.getByTestId('limits-error')).getByText('GPU LOAD')).toBeInTheDocument();
+    expect(within(screen.getByTestId('limits-unsupported')).getByText('CPU TEMP')).toBeInTheDocument();
   });
 });

@@ -1,7 +1,9 @@
 pub mod ai_usage;
+pub mod alerts;
 pub mod desktop_layer;
 pub mod gpu;
 pub mod pomodoro;
+pub mod profiles;
 pub mod settings;
 pub mod shortcuts;
 pub mod system_monitor;

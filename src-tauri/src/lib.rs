@@ -65,6 +65,7 @@ pub fn run() {
                 shortcut_status: Mutex::new(BTreeMap::new()),
                 top_suppressed: AtomicBool::new(false),
                 desktop_color: Mutex::new(desktop_layer::desktop_solid_color()),
+                display_count: std::sync::atomic::AtomicUsize::new(0),
             });
 
             // Keep the OS autostart entry in line with the saved preference.
@@ -138,6 +139,11 @@ pub fn run() {
             commands::close_panel,
             commands::apply_region,
             commands::reset_layout,
+            commands::activate_profile,
+            commands::create_profile,
+            commands::rename_profile,
+            commands::delete_profile,
+            commands::reset_profile,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build FLIP");

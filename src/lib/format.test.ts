@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, clockText, dateMeta, dateText, duration, mmss, pct, rate, resetText, sessionDots, temp, utcOffset } from './format';
+import { ago, bytes, clockText, dateMeta, dateText, duration, missing, mmss, orMissing, pct, rate, resetText, sessionDots, temp, utcOffset } from './format';
 import { boardColor, hexToRgb, pickLayout, scaleFor } from './layout';
 import type { HomeTime } from './types';
 
@@ -85,5 +85,26 @@ describe('layout', () => {
     expect(scaleFor(100, 100, 'full')).toBe(0.36);
     expect(scaleFor(9999, 9999, 'full')).toBe(1.5);
     expect(scaleFor(1920, 1080, 'full', 1.1)).toBeCloseTo(1.1);
+  });
+});
+
+describe('missing values', () => {
+  const lim = [
+    { metric: 'GPU LOAD', reason: 'x', kind: 'error' as const },
+    { metric: 'CPU TEMP', reason: 'y', kind: 'unsupported' as const },
+  ];
+  it('labels failures ERR and unsupported metrics N/A', () => {
+    expect(missing(lim, 'GPU LOAD')).toBe('ERR');
+    expect(missing(lim, 'CPU TEMP')).toBe('N/A');
+    expect(missing(lim, 'DISK I/O')).toBe('N/A');
+    expect(missing(lim, 'GPU LOAD', 'GPU')).toBe('ERR');
+  });
+  it('only replaces the placeholder, never a real value', () => {
+    expect(orMissing('N/A', 'ERR')).toBe('ERR');
+    expect(orMissing('0%', 'ERR')).toBe('0%');
+  });
+  it('formats byte counts', () => {
+    expect(bytes(512 * 1024 ** 2)).toBe('512 MB');
+    expect(bytes(1.5 * 1024 ** 3)).toBe('1.5 GB');
   });
 });

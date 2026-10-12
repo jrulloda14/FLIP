@@ -47,6 +47,7 @@ fn run(app: &AppHandle, action: &str) {
         "focus" => {
             let _ = commands::apply_pomodoro(app, &state, Command::Toggle);
         }
+        "profile" => commands::next_profile(app, &state),
         _ => {}
     }
 }

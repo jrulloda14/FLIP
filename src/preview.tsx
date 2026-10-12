@@ -35,13 +35,26 @@ b.clock.cities = [
   ...b.clock.cities,
   { name: 'SYDNEY', code: 'SYD', tz: 'Australia/Sydney', time: '15:43', diffMinutes: 180, diffLabel: '+3H', dayShift: 0, valid: true },
 ];
+// The backend keeps the active profile in step with the live settings; mirror that here.
+for (const p of b.settings.profiles.items) if (p.id !== 'gaming') p.clock = { ...p.clock, template: b.settings.clock.template };
+// Sample custom profile on a second monitor (preview data only).
+b.settings.profiles.items.push({ ...b.settings.profiles.items[0]!, id: 'user-1', name: 'DESK 2', builtin: false, window: { ...b.settings.window, displayId: 'MON-B', display: 'DISPLAY2' } });
 let settings: Settings = b.settings;
+/** Preview stand-in for the backend's profile switch: copies the profile's layout fields. */
+const activate = (id: string): Settings => {
+  const p = settings.profiles.items.find((x) => x.id === id);
+  if (!p) return settings;
+  const clock = { ...p.clock, h24: settings.clock.h24, dateFormat: settings.clock.dateFormat, homeTimeZone: settings.clock.homeTimeZone };
+  return (settings = { ...settings, modules: p.modules, clock, appearance: p.appearance, window: { ...settings.window, mode: p.window.mode, layer: p.window.layer }, profiles: { ...settings.profiles, active: id } });
+};
 mockIPC((cmd, args) => {
   const a = args as Record<string, unknown>;
   if (cmd === 'get_bootstrap') return { ...b, settings };
   if (cmd === 'update_settings') return (settings = a.settings as Settings);
   if (cmd === 'pomodoro_command') return b.pomodoro;
   if (cmd === 'refresh_ai') return b.ai;
+  if (cmd === 'activate_profile') return activate(a.id as string);
+  if (cmd === 'create_profile' || cmd === 'rename_profile' || cmd === 'delete_profile' || cmd === 'reset_profile') return settings;
   if (cmd === 'apply_region' || cmd === 'reset_layout' || cmd === 'restore_default_settings') return settings;
   if (cmd.startsWith('plugin:event')) return 0;
   return null;

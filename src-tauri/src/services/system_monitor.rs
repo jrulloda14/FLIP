@@ -7,7 +7,9 @@ use std::time::Instant;
 
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, Networks, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System};
+use sysinfo::{
+    CpuRefreshKind, DiskRefreshKind, Disks, MemoryRefreshKind, Networks, ProcessRefreshKind, ProcessesToUpdate, RefreshKind, System,
+};
 
 use super::gpu::GpuMonitor;
 
@@ -31,6 +33,8 @@ pub struct CpuInfo {
 pub struct MemoryInfo {
     pub used_bytes: u64,
     pub total_bytes: u64,
+    /// Memory Windows can hand out without paging (includes reclaimable cache).
+    pub available_bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -39,6 +43,17 @@ pub struct DiskInfo {
     pub mount: String,
     pub used_bytes: u64,
     pub total_bytes: u64,
+    /// Bytes per second; `None` when Windows does not report I/O for this volume.
+    pub read_bytes_per_sec: Option<f64>,
+    pub write_bytes_per_sec: Option<f64>,
+}
+
+/// Disk activity summed over all volumes that report it.
+#[derive(Debug, Clone, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DiskIo {
+    pub read_bytes_per_sec: Option<f64>,
+    pub write_bytes_per_sec: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -54,6 +69,10 @@ pub struct GpuInfo {
     pub name: Option<String>,
     pub usage: Option<f32>,
     pub temperature_c: Option<f32>,
+    pub memory_used_bytes: Option<u64>,
+    pub memory_total_bytes: Option<u64>,
+    /// True when memory is shared system memory (integrated GPU) rather than dedicated VRAM.
+    pub memory_shared: bool,
     pub source: Option<String>,
 }
 
@@ -70,6 +89,15 @@ pub struct ProcessInfo {
 pub struct Limitation {
     pub metric: String,
     pub reason: String,
+    pub kind: LimitKind,
+}
+
+/// Why a metric is missing: this hardware/driver cannot provide it, or a read failed this time.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum LimitKind {
+    Unsupported,
+    Error,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -81,12 +109,14 @@ pub struct SystemSnapshot {
     pub memory: MemoryInfo,
     pub disks: Vec<DiskInfo>,
     pub network: NetworkInfo,
+    pub disk_io: DiskIo,
     pub gpu: GpuInfo,
     pub uptime_secs: u64,
     pub process_count: usize,
     pub cpu_history: Vec<f32>,
     pub rx_history: Vec<f64>,
     pub tx_history: Vec<f64>,
+    pub disk_history: Vec<f64>,
     pub top_processes: Vec<ProcessInfo>,
     pub limitations: Vec<Limitation>,
 }
@@ -127,6 +157,29 @@ pub fn mount_label(mount: &str) -> String {
     }
 }
 
+/// Read/write rates for one volume from sysinfo's counters. A volume whose lifetime totals are
+/// both zero has never reported I/O (counters unavailable), so it is unknown, not idle.
+pub fn disk_rates(
+    delta_read: u64,
+    delta_write: u64,
+    total_read: u64,
+    total_write: u64,
+    elapsed: Option<f64>,
+) -> (Option<f64>, Option<f64>) {
+    if total_read == 0 && total_write == 0 {
+        return (None, None);
+    }
+    match elapsed {
+        Some(e) => (rate(delta_read, e), rate(delta_write, e)),
+        None => (None, None),
+    }
+}
+
+/// Sum of the rates that are known; `None` when no volume reports.
+pub fn sum_known(values: impl IntoIterator<Item = Option<f64>>) -> Option<f64> {
+    values.into_iter().flatten().fold(None, |acc, v| Some(acc.unwrap_or(0.0) + v))
+}
+
 pub fn push_history<T>(h: &mut VecDeque<T>, v: T) {
     if h.len() == HISTORY_LEN {
         h.pop_front();
@@ -153,6 +206,7 @@ pub struct SystemMonitor {
     cpu_history: VecDeque<f32>,
     rx_history: VecDeque<f64>,
     tx_history: VecDeque<f64>,
+    disk_history: VecDeque<f64>,
     top: Vec<ProcessInfo>,
     hostname: String,
 }
@@ -176,6 +230,7 @@ impl SystemMonitor {
             cpu_history: VecDeque::with_capacity(HISTORY_LEN),
             rx_history: VecDeque::with_capacity(HISTORY_LEN),
             tx_history: VecDeque::with_capacity(HISTORY_LEN),
+            disk_history: VecDeque::with_capacity(HISTORY_LEN),
             top: Vec::new(),
             hostname: System::host_name().unwrap_or_else(|| "THIS PC".into()).to_uppercase(),
         }
@@ -202,6 +257,7 @@ impl SystemMonitor {
         let cpu_name = self.sys.cpus().first().map(|c| c.brand().trim().to_string()).unwrap_or_default();
         if want_temps {
             limitations.push(Limitation {
+                kind: LimitKind::Unsupported,
                 metric: "CPU TEMP".into(),
                 reason: "Windows has no documented, unelevated CPU temperature API. The ACPI thermal zone \
                          (WMI) is not the CPU die temperature and needs admin rights, so FLIP shows N/A rather \
@@ -212,7 +268,11 @@ impl SystemMonitor {
 
         // Memory.
         self.sys.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
-        let memory = MemoryInfo { used_bytes: self.sys.used_memory(), total_bytes: self.sys.total_memory() };
+        let memory = MemoryInfo {
+            used_bytes: self.sys.used_memory(),
+            total_bytes: self.sys.total_memory(),
+            available_bytes: self.sys.available_memory(),
+        };
 
         // Network: sysinfo's received()/transmitted() are deltas since the previous refresh.
         self.networks.refresh(true);
@@ -230,24 +290,49 @@ impl SystemMonitor {
             push_history(&mut self.tx_history, t);
         }
 
-        // Disks: space changes slowly, and the list refresh notices drives being added/removed.
+        // Disks: space and the volume list change slowly (refreshed every 30 s, which also notices
+        // drives being added or removed); I/O counters are refreshed every sample for rates.
         if now.duration_since(self.last_disks).as_secs() >= DISK_REFRESH_SECS {
             self.disks.refresh(true);
             self.last_disks = now;
+        } else {
+            self.disks.refresh_specifics(false, DiskRefreshKind::nothing().with_io_usage());
         }
         let mut disks: Vec<DiskInfo> = self
             .disks
             .list()
             .iter()
             .filter(|d| d.total_space() > 0)
-            .map(|d| DiskInfo {
-                mount: mount_label(&d.mount_point().to_string_lossy()),
-                used_bytes: d.total_space().saturating_sub(d.available_space()),
-                total_bytes: d.total_space(),
+            .map(|d| {
+                let u = d.usage();
+                let (read, write) = disk_rates(u.read_bytes, u.written_bytes, u.total_read_bytes, u.total_written_bytes, elapsed);
+                DiskInfo {
+                    mount: mount_label(&d.mount_point().to_string_lossy()),
+                    used_bytes: d.total_space().saturating_sub(d.available_space()),
+                    total_bytes: d.total_space(),
+                    read_bytes_per_sec: read,
+                    write_bytes_per_sec: write,
+                }
             })
             .collect();
         disks.sort_by(|a, b| a.mount.cmp(&b.mount));
         disks.dedup_by(|a, b| a.mount == b.mount);
+        let disk_io = DiskIo {
+            read_bytes_per_sec: sum_known(disks.iter().map(|d| d.read_bytes_per_sec)),
+            write_bytes_per_sec: sum_known(disks.iter().map(|d| d.write_bytes_per_sec)),
+        };
+        if let (Some(r), Some(w)) = (disk_io.read_bytes_per_sec, disk_io.write_bytes_per_sec) {
+            push_history(&mut self.disk_history, r + w);
+        }
+        if elapsed.is_some() && !disks.is_empty() && disks.iter().all(|d| d.read_bytes_per_sec.is_none()) {
+            limitations.push(Limitation {
+                kind: LimitKind::Unsupported,
+                metric: "DISK I/O".into(),
+                reason: "Windows is not reporting disk performance counters for these volumes (they can be turned off \
+                         with `diskperf -n`)."
+                    .into(),
+            });
+        }
 
         // Processes.
         if self.last_processes.is_none_or(|t| now.duration_since(t).as_secs() >= PROCESS_REFRESH_SECS) {
@@ -271,12 +356,28 @@ impl SystemMonitor {
         // GPU.
         let gpu = if want_gpu {
             let g = self.gpu.sample(want_temps);
-            for (metric, reason) in g.limitations {
-                limitations.push(Limitation { metric, reason });
+            for (metric, reason, kind) in g.limitations {
+                limitations.push(Limitation { metric, reason, kind });
             }
-            GpuInfo { name: g.name, usage: g.usage, temperature_c: g.temperature_c, source: g.source }
+            GpuInfo {
+                name: g.name,
+                usage: g.usage,
+                temperature_c: g.temperature_c,
+                memory_used_bytes: g.memory.map(|m| m.used_bytes),
+                memory_total_bytes: g.memory.map(|m| m.total_bytes),
+                memory_shared: g.memory.is_some_and(|m| m.shared),
+                source: g.source,
+            }
         } else {
-            GpuInfo { name: None, usage: None, temperature_c: None, source: None }
+            GpuInfo {
+                name: None,
+                usage: None,
+                temperature_c: None,
+                memory_used_bytes: None,
+                memory_total_bytes: None,
+                memory_shared: false,
+                source: None,
+            }
         };
 
         SystemSnapshot {
@@ -286,12 +387,14 @@ impl SystemMonitor {
             memory,
             disks,
             network,
+            disk_io,
             gpu,
             uptime_secs: System::uptime(),
             process_count: self.sys.processes().len(),
             cpu_history: padded(&self.cpu_history),
             rx_history: padded(&self.rx_history),
             tx_history: padded(&self.tx_history),
+            disk_history: padded(&self.disk_history),
             top_processes: self.top.clone(),
             limitations,
         }
@@ -332,6 +435,21 @@ mod tests {
     }
 
     #[test]
+    fn disk_rates_distinguish_unsupported_from_idle() {
+        assert_eq!(disk_rates(0, 0, 0, 0, Some(1.0)), (None, None), "never reported: unknown");
+        assert_eq!(disk_rates(0, 0, 5_000, 9_000, Some(1.0)), (Some(0.0), Some(0.0)), "idle: real zero");
+        assert_eq!(disk_rates(2_000, 1_000, 5_000, 9_000, Some(2.0)), (Some(1_000.0), Some(500.0)));
+        assert_eq!(disk_rates(2_000, 1_000, 5_000, 9_000, None), (None, None), "first sample has no baseline");
+    }
+
+    #[test]
+    fn sums_only_known_values() {
+        assert_eq!(sum_known([Some(1.0), None, Some(2.5)]), Some(3.5));
+        assert_eq!(sum_known([None, None]), None);
+        assert_eq!(sum_known(Vec::<Option<f64>>::new()), None);
+    }
+
+    #[test]
     fn history_is_bounded_and_padded() {
         let mut h = VecDeque::new();
         for i in 0..100 {
@@ -361,7 +479,12 @@ mod tests {
         assert!((0.0..=1.0).contains(&u));
         assert!(s.network.rx_bytes_per_sec.is_some());
         assert!(s.cpu.temperature_c.is_none());
-        assert!(s.limitations.iter().any(|l| l.metric == "CPU TEMP"));
+        assert!(s.limitations.iter().any(|l| l.metric == "CPU TEMP" && l.kind == LimitKind::Unsupported));
+        assert!(s.memory.available_bytes > 0 && s.memory.available_bytes <= s.memory.total_bytes);
+        assert_eq!(s.disk_history.len(), HISTORY_LEN);
+        // Disk I/O is either reported for some volume or flagged as unsupported, never silently zero.
+        let reported = s.disks.iter().any(|d| d.read_bytes_per_sec.is_some());
+        assert!(reported || s.limitations.iter().any(|l| l.metric == "DISK I/O"));
         assert!(s.disks.iter().all(|d| d.used_bytes <= d.total_bytes));
         assert_eq!(s.cpu_history.len(), HISTORY_LEN);
     }

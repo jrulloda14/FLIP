@@ -1,7 +1,7 @@
 //! Shared application state. Every lock is held only for short, non-blocking sections.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use chrono::{NaiveDate, Utc};
@@ -47,6 +47,8 @@ pub struct AppState {
     pub top_suppressed: AtomicBool,
     /// Windows solid desktop colour (`#rrggbb`), or None when a wallpaper image is set.
     pub desktop_color: Mutex<Option<String>>,
+    /// Displays seen at the last check (0 = not yet checked), for profile auto-switching.
+    pub display_count: AtomicUsize,
 }
 
 /// Recovers from a poisoned lock instead of propagating a panic from another thread.

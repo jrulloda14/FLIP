@@ -1,5 +1,5 @@
 // Pure display formatters. Everything the board prints is uppercase and fixed-width where possible.
-import type { DateFormat, HomeTime, Phase, TempUnit, UsageWindow } from './types';
+import type { DateFormat, HomeTime, Limitation, Phase, TempUnit, UsageWindow } from './types';
 
 export const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -131,4 +131,21 @@ export function ago(iso: string | null, nowMs: number): string {
   if (!Number.isFinite(ms)) return 'UNKNOWN';
   if (ms < 60_000) return 'JUST NOW';
   return `${duration(ms)} AGO`;
+}
+
+/** What to show when a metric has no value: ERR for a temporary read failure (retried on the
+ *  next sample), N/A when this PC cannot provide it. */
+export function missing(limitations: Limitation[], ...metrics: string[]): 'N/A' | 'ERR' {
+  return limitations.some((l) => metrics.includes(l.metric) && l.kind === 'error') ? 'ERR' : 'N/A';
+}
+
+/** Replaces an N/A placeholder with the limitation-aware label. */
+export function orMissing(v: string, label: 'N/A' | 'ERR'): string {
+  return v === 'N/A' ? label : v;
+}
+
+/** Byte count in the largest fitting unit: "512 MB", "1.5 GB". */
+export function bytes(n: number): string {
+  if (n >= GB) return `${(n / GB).toFixed(1)} GB`;
+  return `${Math.round(n / 1024 ** 2)} MB`;
 }

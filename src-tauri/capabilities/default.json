@@ -21,6 +21,11 @@
     "allow-open-panel",
     "allow-close-panel",
     "allow-apply-region",
-    "allow-reset-layout"
+    "allow-reset-layout",
+    "allow-activate-profile",
+    "allow-create-profile",
+    "allow-rename-profile",
+    "allow-delete-profile",
+    "allow-reset-profile"
   ]
 }

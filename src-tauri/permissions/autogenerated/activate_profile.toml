@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-activate-profile"
+description = "Enables the activate_profile command without any pre-configured scope."
+commands.allow = ["activate_profile"]
+
+[[permission]]
+identifier = "deny-activate-profile"
+description = "Denies the activate_profile command without any pre-configured scope."
+commands.deny = ["activate_profile"]

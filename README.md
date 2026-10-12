@@ -1,108 +1,286 @@
-# FLIP
+# FLIP — Your Windows Desktop Command Center
 
-![FLIP dashboard: dot-matrix clock, AI usage rows, world-clock board and system monitor](docs/screenshots/dashboard.png)
+**An airport-board dashboard that lives on your Windows desktop: a split-flap clock, world clocks, a focus timer, AI coding-plan usage and live system monitoring, with a profile for every way you work.**
 
-<sub>Shown with sample data. FLIP displays your own clock, cities and system readings, and only shows AI usage from a source you connect.</sub>
+![FLIP on a 1920×1080 display: split-flap clock, AI usage rows, world-clock board, system monitor and Pomodoro timer](docs/assets/dashboard.png)
 
-**[Download for Windows](https://github.com/jrulloda14/FLIP/releases/latest)** · free and open source (MIT)
+<sub>Rendered from FLIP's own UI with sample data (see [About these images](#about-these-images)). FLIP shows your own clock, cities and system readings, and AI usage only from a source you connect.</sub>
 
-A desktop-embedded airport-board dashboard for Windows. It shows a dot-matrix clock, AI subscription usage, world clocks, a Pomodoro timer and a live system monitor on one continuous black display.
+**[Download for Windows](https://github.com/jrulloda14/FLIP/releases/latest)** · free and open source (MIT) · Windows 10 and 11, x64
 
-FLIP is not a normal app window. It has no title bar or border in any mode, no taskbar button and no Alt+Tab entry, and by default it sits **on the desktop layer**: under your applications, above the wallpaper, and still visible when you press Win+D. It works as a full-screen ambient board on a second monitor, or as a region of your main monitor that coexists with your apps.
+FLIP sits on the desktop instead of asking for another app window. It has no title bar, no taskbar button and no Alt+Tab entry. By default it stays under your applications and above the wallpaper, and it is still there when you press Win+D. Pick a clock style, choose what the board shows and where, and save that as a profile you can switch to from the tray or a shortcut.
 
-Built with **Tauri 2** (Rust backend, WebView2), **React 19 + TypeScript** and **Vite**. The front end reuses the design system in `design/` (tokens, `flip.css`, dot-matrix primitives, JetBrains Mono).
+Everything runs locally. FLIP has no account, no telemetry and makes no network requests.
 
 ---
 
-## Download
+## Contents
 
-Get FLIP from the [Releases](../../releases/latest) page. There are two installers; both install for the current user only (no admin rights) and include an uninstaller. Windows 10 and 11, x64.
+[Key features](#key-features) · [Screenshots](#screenshots) · [Download and installation](#download-and-installation) · [First-run guide](#first-run-guide) · [Desktop embedding and display modes](#desktop-embedding-and-display-modes) · [Clock Studio](#clock-studio-and-clock-templates) · [Profiles](#multi-monitor-profiles) · [System monitoring](#windows-system-monitoring) · [AI usage](#ai-usage-integrations) · [Shortcuts and tray](#keyboard-shortcuts-and-tray-controls) · [Privacy and security](#privacy-and-security) · [Limitations](#known-limitations) · [Build from source](#build-from-source) · [Architecture](#architecture-overview) · [Roadmap](#roadmap) · [Contributing](#contributing) · [License](#license)
+
+## Key features
+
+- **Desktop-embedded, borderless board.** Three layers: on the desktop (default; under your apps, visible on Show Desktop), normal, or always on top (steps aside for fullscreen games and presentations).
+- **Three display modes.** Ambient fills a display, Windowed shares it with your apps in one of eight regions, Compact is a small corner board.
+- **Clock Studio.** Split flap (default), dot matrix, seven segment, terminal and minimal templates. Only the digits that change animate.
+- **Profiles.** Developer, Ambient, Focus, Gaming and Custom built in, plus up to eleven of your own. Each one remembers modules and their order, clock style, appearance, display, mode and position. Profiles can optionally switch when you dock or undock.
+- **Monitors remembered by hardware ID**, not by position in Windows' list, so re-plugging or renumbering displays doesn't move FLIP to the wrong screen.
+- **System monitor.** CPU total and per core, RAM used and available, disk space and read/write activity, network throughput, GPU load and memory, uptime, process count, NVIDIA GPU temperature. A missing reading shows **N/A** (this PC can't provide it) or **ERR** (a reading failed and is retried), never a fake zero.
+- **Optional alerts** for sustained high CPU, high memory and low disk space, with thresholds and cooldowns. FLIP only notifies; it never changes anything on your system.
+- **AI coding-plan usage** for Claude (via Claude Code's status line) and Codex (experimental, from local CLI logs), or entered by hand. No API keys, no passwords, no scraping.
+- **World clocks and a Pomodoro timer.** IANA time zones with correct daylight saving; a deadline-based timer that survives sleep and restarts.
+- **Installs per user**, needs no administrator rights, and has an offline installer.
+
+## Screenshots
+
+| Profiles | System detail |
+|---|---|
+| ![Settings › Profiles: the five built-in profiles and a custom one, each with use, duplicate, reset or rename and delete, plus auto-switch](docs/assets/profiles.png) | ![System detail: CPU history and per-core load, network and disk activity, memory available, GPU load and memory, disks, top processes and unavailable metrics](docs/assets/system-detail.png) |
+
+| Clock Studio | Split-flap clock |
+|---|---|
+| ![Settings › Clock: template tiles, format, size, spacing, colour and animation options with a live preview](docs/assets/clock-studio.png) | ![Split-flap template close-up with seconds](docs/assets/split-flap.png) |
+
+| Focus session | Settings › Display |
+|---|---|
+| ![Dashboard with a focus session running: the Pomodoro countdown leads the left panel](docs/assets/focus.png) | ![Settings › Display: display picker, mode, region, layer, board colour and opacity](docs/assets/display.png) |
+
+| Alerts (Settings › System) | |
+|---|---|
+| ![Settings › System: metric toggles, sampling interval and the opt-in alerts section](docs/assets/alerts.png) | |
+
+### About these images
+
+These images were rendered from FLIP's actual React UI and stylesheets in the development preview (`npm run dev`, then `/preview.html`), at the window sizes shown, with **sample data**: the host name, readings, cities and AI percentages are fixtures, not a real PC. They are not screen captures of the desktop app running on Windows, so they don't show the wallpaper, taskbar, tray menu or how FLIP sits among other windows.
+
+## Download and installation
+
+Get FLIP from **[Releases](https://github.com/jrulloda14/FLIP/releases/latest)**. Each release has two installers. Both install for the current user only (no administrator rights), add a Start-menu entry and include an uninstaller.
 
 | Installer | Size | Use it when |
 |---|---|---|
-| `FLIP_<version>_x64-setup.exe` | ~2 MB | Almost always. It downloads Microsoft's WebView2 runtime only if your PC lacks it (Windows 11 and up-to-date Windows 10 already have it). |
+| `FLIP_<version>_x64-setup.exe` | ~2 MB | Almost always. It downloads Microsoft's WebView2 runtime only if your PC doesn't have it (Windows 11 and up-to-date Windows 10 already do). |
 | `FLIP_<version>_x64-offline-setup.exe` | ~210 MB | The PC has no internet, or WebView2 is missing and can't be downloaded. Includes Microsoft's WebView2 installer. |
 
 Nothing else is needed: no Node.js, Rust or Visual C++ redistributable.
 
-Windows SmartScreen may warn on first run because the installers are not code-signed. Choose **More info › Run anyway**, or build from source (below). Each release lists SHA-256 checksums so you can check what you downloaded:
+**Windows SmartScreen.** The installers are not code-signed, so the first time you run one, Microsoft Defender SmartScreen may show *"Windows protected your PC"* because the file is from an unrecognised publisher. That message is about reputation, not a detected threat. If you trust the download, choose **More info**, check the file name, then **Run anyway**. Keep SmartScreen and your antivirus on. If you'd rather not run an unsigned installer, [build FLIP from source](#build-from-source).
+
+Each release lists SHA-256 checksums. To check your download in PowerShell:
 
 ```powershell
-Get-FileHash .\FLIP_0.2.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\FLIP_<version>_x64-setup.exe -Algorithm SHA256
 ```
 
-## Screenshots
+**Upgrading** keeps your settings. Settings from earlier versions are migrated automatically; your current layout becomes the **CUSTOM** profile.
 
-| Split-flap clock | Clock Studio |
+**Uninstalling:** Windows Settings › Apps › FLIP › Uninstall. Tick *delete app data* to remove your settings too.
+
+## First-run guide
+
+1. **Start FLIP.** It opens in the right half of your primary monitor, on the desktop layer, with the split-flap clock and the **Developer** profile.
+2. **Find the controls.** Hover over the top strip: layer, SETTINGS, COMPACT, hide (—) and ✕ appear and fade after 3 seconds. The tray icon is always there; left-click it to show or hide FLIP.
+3. **Place it.** Settings › Display: choose a monitor, a mode and a region. In Windowed or Compact you can also drag the top strip and resize from the edges.
+4. **Pick a clock.** Settings › Clock. Use *Play rollover demo* to see how the template animates.
+5. **Add cities.** Settings › Locations (up to 8).
+6. **Connect AI usage (optional).** Settings › AI. See [AI usage integrations](#ai-usage-integrations).
+7. **Save a profile.** Settings › Profiles › *New profile from the current layout*. Switch between profiles from the tray, with `Ctrl+Alt+N`, or `N` while FLIP has focus.
+
+If FLIP ends up somewhere you can't see, use the tray menu: **Move to primary display** or **Reset layout and position**.
+
+## Desktop embedding and display modes
+
+FLIP is a borderless tool window. It never shows a title bar, taskbar button or Alt+Tab entry, and switching profiles or modes never takes focus from the app you're using.
+
+| Layer | Behaviour |
 |---|---|
-| ![Split-flap template: mechanical airport-board digit cards with seconds](docs/screenshots/split-flap.png) | ![Clock Studio: template tiles, format, style and animation settings with a live preview](docs/screenshots/clock-studio.png) |
+| **On desktop** (default) | Pinned under all application windows, above the wallpaper. When you press Win+D or click the desktop, FLIP lifts itself above the desktop so it stays visible, and drops back when you switch to an app. |
+| **Normal** | Stacks like an ordinary window. |
+| **Always on top** | Above other windows, but steps back while Windows reports a fullscreen app (such as a game) or presentation mode, and returns afterwards. |
 
-| Focus session running | Settings › Display |
+| Mode | What it does |
 |---|---|
-| ![Focus session: the Pomodoro countdown leads the left panel in dot-matrix digits](docs/screenshots/focus.png) | ![Settings panel, Display tab: display, mode, region, layer, board colour and opacity](docs/screenshots/settings.png) |
+| **Ambient** | Fills the chosen display's work area (taskbar excluded). Best on a second monitor. |
+| **Windowed** | A movable, resizable region: full, left or right half, any quarter, or centre. |
+| **Compact** | A small board with the clock first. |
 
-## Privacy
+- Each mode keeps its own position and region.
+- Layouts adapt to the window size (Full, Compact, Mini density) and to display scaling.
+- **Displays coming and going:** if FLIP's display is disconnected, it moves to the primary monitor within about 5 seconds and says so in Settings › Display. When the display returns, FLIP moves back. A saved position is reused only if it is visible on that display; otherwise FLIP uses the region preset, so it can't be stranded off-screen.
+- Background opacity from 40% to 100% lets the wallpaper show through; text stays fully opaque.
 
-Everything FLIP does happens on your PC.
+## Clock Studio and clock templates
 
-- **No accounts, no telemetry, no analytics, no update checks, no network requests.** The app contains no HTTP client, and its content security policy only allows Tauri's local IPC channel.
-- **The one exception is installation:** on Windows 10 machines that lack Microsoft's WebView2 runtime, the installer downloads it from Microsoft. Windows 11 already includes it.
-- **What it stores, all in your user profile:**
-
-  | Location | Content |
-  |---|---|
-  | `%APPDATA%\com.flip.dashboard\` | `settings.json`, Pomodoro history, the last AI usage readings, the Claude status-line capture |
-  | `%LOCALAPPDATA%\com.flip.dashboard\` | A small rotating log (`logs\FLIP.log`) and the WebView2 cache |
-  | `HKCU\…\CurrentVersion\Run` | Only if you turn on *Launch on startup* |
-
-- **What it reads:** CPU, memory, disk, network and GPU counters via Windows APIs; the Windows time zone and display layout; the desktop colour. It also reads Claude Code's status-line input and, if you opt in, Codex CLI session logs under `%USERPROFILE%\.codex`. Nothing is copied anywhere else.
-- **No credentials** are requested or stored.
-- **To remove everything,** uninstall FLIP (tick *delete app data*), or delete the two folders above.
-
-## Clock Studio
-
-Settings › Clock lets you restyle the main clock. Every template shows real time from the same per-second tick; none of them keeps its own count.
+Settings › Clock restyles the main clock. Every template shows real time from the same per-second tick.
 
 | Template | Look |
 |---|---|
-| **Dot Matrix** | The original FLIP 5×7 LED dots, round or square, with optional unlit "ghost" dots. Installs from before Clock Studio keep it. |
-| **Split Flap** (default) | Mechanical airport-board cards. When a digit changes, its upper half falls on a hinge and the new lower half swings down. Only changed digits flip, so 12:59 → 13:00 flips three cards and leaves the first. Optional panel seam, shadow, and graphite or black cards. |
-| **Seven Segment** | Slanted LED segments, with optional faint unlit segments. |
+| **Split Flap** (default) | Mechanical airport-board cards. A changing digit's upper half falls on a hinge and the new lower half swings down. Only changed digits flip, so 12:59 → 13:00 flips three cards. Optional panel seam, shadow, and graphite or black cards. |
+| **Dot Matrix** | FLIP's original 5×7 LED dots, round or square, with optional unlit "ghost" dots. |
+| **Seven Segment** | Slanted LED segments, optionally with faint unlit segments. |
 | **Terminal** | Monospaced console text with a prompt. |
 | **Minimal** | Large, light numerals. |
 
-Shared options:
-- 12/24-hour, seconds, date on/off and format, week + UTC line
-- size, digit spacing, and digit colour (bright, soft or dim, from FLIP's monochrome ink ramp)
-- colon blink
-- **Animate digits** on/off, with 250, 320 or 400 ms speed
+Shared options: 12/24-hour, seconds, date and format, week + UTC line, size, digit spacing, digit colour (bright, soft or dim), colon blink, and digit animation on/off at 250, 320 or 400 ms.
 
-Digit animation turns off automatically when Windows' *Animation effects* (reduced motion) is off. After sleep, each digit flips once to the current time; missed minutes aren't replayed. Small layouts cap the clock size so digits never clip. The **Play rollover demo** button shows 12:58 → 13:00, 09:59 → 10:00 and 23:59 → 00:00 on the preview, clearly labeled as demo time.
+Animation turns off automatically when Windows' *Animation effects* setting is off. After sleep, each digit flips once to the current time instead of replaying missed minutes. The rollover demo uses clearly labeled sample times.
 
-## Status
+## Multi-monitor profiles
 
-| Area | State |
+A profile is a saved dashboard layout. Each profile remembers:
+
+- which modules are visible, their order, the layout preset and density;
+- the clock template and its look (size, spacing, colour, animation, template options);
+- appearance (board colour, opacity, typeface, text size, contrast);
+- the target monitor, display mode, layer, regions and window positions.
+
+Time zones and cities, 12/24-hour and date format, AI sources, the focus timer, notifications, startup options and shortcuts are shared by all profiles.
+
+| Built-in profile | Layout |
 |---|---|
-| Clock, date, ISO week, UTC offset | Working. Clock Studio templates (dot matrix, split flap, seven segment, terminal, minimal), 12/24h, optional seconds, colon blink, size, spacing, ink, animation on/off and speed. |
-| World clock | Working. IANA zones via `chrono-tz`, DST-correct, add/remove/reorder up to 8 cities, day-shift marker. |
-| Pomodoro | Working. Deadline-based, survives sleep and restarts, short/long breaks, auto-start, notifications, daily count and total focus time. |
-| System monitor | Working. CPU (total, per-core, 60s history), RAM, disks, network rates, process count, top processes, uptime. GPU load via Windows PDH. GPU temperature on NVIDIA only. CPU temperature always shows N/A (see Limitations). |
-| AI usage | Real data from Claude Code's status line and, as an opt-in experiment, Codex CLI local logs. Manual entry for both. With no source set up, the rows say NOT CONNECTED. No percentage is ever invented. |
-| Desktop embedding | Working. Borderless tool window with three layers: **on desktop** (default; pinned under all apps, raised above the desktop on Show Desktop), **normal**, and **always on top** (steps aside while a fullscreen game or presentation runs). |
-| Display modes | **Ambient** (fills the chosen display's work area), **Windowed** (movable, resizable region) and **Compact** (small board: clock, AI, focus first). New installs start Windowed in the right half of the primary monitor, on the desktop layer, with the Balanced preset, FULL density and the split-flap clock. Pick another display or Ambient under Settings › Display. |
-| Placement | Display picker, 8 region presets (full, halves, quarters, centre), drag by the top strip, resize from the edges. Each mode keeps its own position, and FLIP falls back to the primary monitor (and moves back) when the chosen display is unplugged (and replugged). |
-| Layout | Presets: balanced, clock-focused, AI-focused, system-focused. Module visibility and order. Background opacity 40–100% with fully opaque text. |
-| Controls | Hover-revealed controls, a separate settings/detail panel window, four editable system-wide shortcuts, a tray menu, "reset layout & position", and "restore all defaults" (asks for confirmation). Launch on startup and start hidden. Single instance. |
-| Windows installer | NSIS (per-user), `npm run tauri:build`. |
+| **Developer** (default) | Windowed, right half: clock, AI usage, world clock, system monitor and focus timer. |
+| **Ambient** | Fills a display with a larger clock and glanceable extras. |
+| **Focus** | Clock, date and the Pomodoro timer; AI, world clock and system monitor hidden. |
+| **Gaming** | Compact top-right board, system preset, seven-segment clock. Stays on the desktop layer, so it never covers a game. |
+| **Custom** | Starts as the default layout. After an upgrade, it holds the layout you had before profiles existed. |
 
-## Quick start
+**Managing profiles** (Settings › Profiles): use, duplicate, create from the current layout, rename and delete your own, and reset a built-in one to its factory layout. Up to 16 profiles. Changes you make anywhere in Settings are saved to the active profile, and the active profile is restored when FLIP starts.
 
-Prerequisites (Windows 10/11 x64):
+**Switching:** the tray's Profile submenu, `Ctrl+Alt+N` (next profile, works system-wide), `N` while FLIP has focus, or Settings › Profiles. The status strip shows the active profile's name.
 
-- Node.js 20+ (tested with 24)
-- Rust stable (tested with 1.99) through rustup, MSVC toolchain
-- Visual Studio 2022 Build Tools with the **Desktop development with C++** workload
-- WebView2 Runtime (built into Windows 11; the installer downloads it on Windows 10 if missing)
+**Monitor identity:** FLIP stores each monitor's Windows device-interface ID (which includes the monitor's hardware ID) as well as its current device name (`\\.\DISPLAY2`). It matches by hardware ID first, so a profile still finds its monitor when Windows renumbers displays. If the monitor isn't connected, the profile shows *DISPLAY NOT CONNECTED · USES PRIMARY* and FLIP uses the primary monitor until it returns. The ID also reflects the port a monitor is plugged into, so moving a monitor to a different port can make FLIP treat it as a new monitor; choose it again in Settings › Display.
+
+**Auto-switch (optional, off by default):** choose a profile for *one display* and one for *two or more*. When the number of connected displays changes while FLIP is running (for example, docking a laptop), FLIP switches profile within about 5 seconds, without taking focus. At startup FLIP restores your last profile rather than applying the rule.
+
+FLIP has one dashboard window, so one profile is active at a time; it can't show different profiles on different monitors simultaneously.
+
+## Windows system monitoring
+
+All readings come from documented Windows APIs as a standard user. Nothing needs administrator rights.
+
+| Metric | Source | Notes |
+|---|---|---|
+| CPU total, per core, 60-second history | `sysinfo` | |
+| RAM used, total and available | `sysinfo` | *Available* includes standby memory Windows can reclaim. |
+| Disk space per volume | `sysinfo` | Refreshed every 30 s; new drives appear automatically. |
+| Disk read/write activity | `sysinfo` per-volume I/O counters | Total and per drive, with a 60-sample plot. **N/A** if Windows disk performance counters are turned off. |
+| Network download/upload | `sysinfo`, all adapters | |
+| GPU load | Windows PDH *GPU Engine* counters (WDDM 2.0+) | Busiest engine type, summed across processes, as in Task Manager. |
+| GPU memory | PDH *GPU Adapter Memory* + DXGI | Dedicated memory for discrete GPUs, shared system memory for integrated GPUs (labeled SHARED). |
+| GPU temperature | NVIDIA NVML, loaded at run time | NVIDIA only. |
+| CPU temperature | — | Always **N/A**; see [Known limitations](#known-limitations). |
+| Uptime, process count, top processes | `sysinfo` | |
+
+**Unavailable vs failed.** When a value can't be read, FLIP shows **N/A** if this PC can't provide it (for example, no NVIDIA driver for GPU temperature) or an amber **ERR** if a reading failed and will be retried on the next sample. The System detail view lists both groups with the reason. Other metrics keep updating either way, and a missing value is never shown as 0.
+
+**Efficiency:** sampling runs on one background thread, every 1, 2 or 5 seconds (your choice) and every 10 seconds while FLIP is hidden. Process lists refresh less often than the counters.
+
+### Alerts (optional)
+
+Settings › System › Alerts. All alerts are off by default.
+
+| Alert | Fires when | Settings |
+|---|---|---|
+| High CPU | Total CPU stays at or above the threshold for the whole duration | 80/90/95%, 1–10 min |
+| High memory | Memory use reaches the threshold | 80/90/95% |
+| Low disk space | Any drive's free space drops below the threshold | 5/10/15/20% |
+
+Each alert type waits for a cooldown (15 min to 4 h) before notifying again, and an unknown reading never triggers an alert. Alerts are Windows notifications only: **FLIP never closes apps, frees memory, deletes files or changes system settings.**
+
+## AI usage integrations
+
+Subscription limits are not the same as API usage. Neither Anthropic's nor OpenAI's public API reports consumer-plan limits such as Claude Pro/Max 5-hour and weekly windows or ChatGPT-plan Codex limits. For that reason FLIP doesn't ask for API keys, passwords or tokens, and it makes no network requests.
+
+| Provider | Source | Status | How it works |
+|---|---|---|---|
+| Claude | **Claude Code status line** | Supported | Claude Code documents a `rate_limits` field in its status-line input. Add the snippet from Settings › AI to `%USERPROFILE%\.claude\settings.json`. Needs a Pro/Max plan; data appears after the first reply in a session and updates while Claude Code redraws its status line. It replaces any status line you already use. |
+| Codex | **Codex CLI local logs** | Experimental, opt-in | Reads `rate_limits` from `token_count` events in `%USERPROFILE%\.codex\sessions` (or `CODEX_HOME`). The log format is undocumented and can change without notice. |
+| Either | **Manual entry** | Supported | Copy values from the provider's usage page. Labeled MANUAL; stale after 12 h. |
+
+With no source set up, a row says NOT CONNECTED. FLIP never invents a percentage. Readings older than 15 minutes show STALE.
+
+The Claude bridge: Claude Code runs `flip.exe --claude-statusline` with the status-line JSON on stdin. FLIP keeps only the two percentages and reset times, discards everything else (paths, session IDs, model, cost), saves them to `%APPDATA%\com.flip.dashboard\claude-statusline.json`, prints a one-line summary back to Claude Code and exits without opening a window.
+
+## Keyboard shortcuts and tray controls
+
+**System-wide shortcuts** work even while FLIP is behind other windows. Change them in Settings › Keys; a shortcut another app already owns is marked *IN USE BY ANOTHER APP*.
+
+| Default | Action |
+|---|---|
+| `Ctrl+Alt+F` | Show / hide |
+| `Ctrl+Alt+S` | Settings |
+| `Ctrl+Alt+L` | Next layout preset |
+| `Ctrl+Alt+P` | Start / pause focus |
+| `Ctrl+Alt+N` | Next profile |
+
+**Keys while FLIP has focus:** `Space` start/pause · `R` reset · `S` skip · `+` add 5 min · `P` timer · `,` settings · `C` compact · `M` next mode · `L` next layout preset · `T` next layer · `N` next profile · `H` hide · `Ctrl+Q` quit.
+
+**Mouse:** click the clock for clock settings, an AI row for provider detail, a system row for system detail, and the focus block for timer controls. These open in a separate panel window.
+
+**Tray menu:** show/hide, **Profile** submenu, start/reset focus, Ambient/Windowed/Compact, keep on top, next layout preset, settings, **Move to primary display**, **Reset layout and position**, and **Quit**. Left-click toggles visibility. The ✕ control hides FLIP by default; Quit is always in the tray.
+
+## Privacy and security
+
+Everything FLIP does happens on your PC.
+
+- **No account, telemetry, analytics, update checks or network requests.** The app contains no HTTP client. Its content security policy allows only Tauri's local IPC channel.
+- **One exception, at install time:** if WebView2 is missing, the standard installer downloads it from Microsoft. The offline installer doesn't.
+- **No credentials** are asked for or stored.
+- **No administrator rights:** per-user install, per-user settings, unelevated APIs.
+
+**What FLIP stores**, all in your user profile:
+
+| Location | Content |
+|---|---|
+| `%APPDATA%\com.flip.dashboard\settings.json` | Preferences, profiles and window placement, including your monitors' Windows device-interface IDs. Written atomically; a corrupt file is renamed `settings.corrupt-<time>.json` and defaults are used. |
+| `%APPDATA%\com.flip.dashboard\pomodoro.json` | Timer state and 120 days of daily focus history. |
+| `%APPDATA%\com.flip.dashboard\ai-cache.json` | Last successful reading per AI source. |
+| `%APPDATA%\com.flip.dashboard\claude-statusline.json` | Written by the Claude bridge, if used. |
+| `%LOCALAPPDATA%\com.flip.dashboard\` | A small rotating log (`logs\FLIP.log`, no usage values or file contents) and the WebView2 cache. |
+| `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` | Only if you turn on *Launch on startup*. |
+
+**What FLIP reads:** CPU, memory, disk, network and GPU counters; the time zone, display layout and desktop colour; Claude Code's status-line input if you set it up; Codex session logs only if you enable that source. Nothing is sent anywhere.
+
+**Security design:**
+
+- The windows have only event listening, window dragging and FLIP's 17 own commands, each allow-listed in `build.rs` and `capabilities/default.json`. No filesystem, shell, HTTP, opener or clipboard plugin.
+- Every command validates its input: city count, label lengths, time zones, percentages, profile IDs and names, shortcuts, panel views and region names.
+- Desktop embedding uses documented Win32 calls on FLIP's own windows only. Nothing is injected into Explorer.
+
+To remove everything, uninstall with *delete app data* ticked, or delete the two `com.flip.dashboard` folders.
+
+## Known limitations
+
+- **CPU temperature is always N/A.** Windows has no documented, unelevated API for CPU die temperature. The WMI thermal zone needs admin rights and isn't the CPU temperature, and vendor sensor drivers need elevation.
+- **GPU temperature** needs NVIDIA's driver (`nvml.dll`). AMD and Intel GPUs show N/A.
+- **GPU** readings need WDDM 2.0+ drivers. GPU memory and the GPU name cover the primary adapter only, and some drivers don't publish memory counters; FLIP then shows N/A.
+- **Rates need two samples,** so network, disk activity and GPU load are N/A for the first second or two.
+- **One active profile at a time,** on one monitor. FLIP can't show different profiles on several monitors at once.
+- **Monitor IDs depend on the port.** Moving a monitor to a different port or dock can make it look new to FLIP, which then falls back to the primary monitor until you choose the monitor again.
+- **Auto-switch counts displays only.** It doesn't distinguish which monitors are connected, and it doesn't run at startup.
+- **No fullscreen auto-hide on the desktop layer.** It isn't needed there (fullscreen apps cover FLIP); the always-on-top layer steps aside for fullscreen apps. An optional "hide during fullscreen" for every layer is on the roadmap.
+- **Desktop layer, not wallpaper layer.** FLIP stays under your apps and stays clickable, but it isn't drawn behind the desktop icons. In Ambient mode on your main monitor it covers them; use Windowed or Compact there.
+- **Virtual desktops:** FLIP stays on the virtual desktop where it started.
+- **Memory:** the Rust process uses about 35 MB; WebView2's helper processes add roughly 150–350 MB depending on GPU and driver.
+- **AI usage** is only as fresh as its source, and the Codex source is experimental.
+- Development builds show notifications under PowerShell's name; installed builds use FLIP's.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| FLIP doesn't appear | It may be hidden. Click the tray icon or press `Ctrl+Alt+F`. On the desktop layer it is *under* your apps: minimise them or press Win+D. |
+| FLIP is on the wrong monitor or off-screen | Tray › **Move to primary display**, or **Reset layout and position**. |
+| A profile shows DISPLAY NOT CONNECTED | Its monitor is unplugged; FLIP uses the primary monitor until it returns. Pick another display in Settings › Display to update the profile. |
+| Disk I/O shows N/A | Windows disk performance counters may be off. An administrator can turn them back on with `diskperf -y`. |
+| Not in Alt+Tab or the taskbar | By design. Use the tray icon or `Ctrl+Alt+F`. |
+| A shortcut does nothing | Another app owns it. Pick a different one in Settings › Keys. |
+| Claude row says WAITING FOR CLAUDE CODE | Check that the `statusLine` snippet points to the current `flip.exe`, and that you're on a Pro/Max plan with at least one reply in the session. |
+| Blank window | The WebView2 runtime is missing or broken. Reinstall it from Microsoft, or use the offline installer. |
+
+## Build from source
+
+Prerequisites (Windows 10/11 x64): Node.js 20+, Rust stable (MSVC toolchain, via rustup), Visual Studio 2022 Build Tools with **Desktop development with C++**, and the WebView2 runtime.
 
 ```bash
 npm install
@@ -114,158 +292,82 @@ npm run tauri:dev
 
 | Task | Command |
 |---|---|
-| Run the desktop app in development (hot reload) | `npm run tauri:dev` |
-| Front end only, in a browser with mocked data | `npm run dev`, then open `http://localhost:1420/preview.html`. Parameters: `?focus&ai` for active states, `preset=clock\|ai\|system`, `mode=compact`, `bg=0.6`, `tpl=splitFlap\|sevenSegment\|terminal\|minimal`, `sec`, `h12`, `live` (tick from the browser's clock to watch digits flip), `panel=settings:CLOCK` for the panel window. |
-| Front-end tests | `npm test` |
-| Type check, lint and tests | `npm run check` |
+| Run the app with hot reload | `npm run tauri:dev` |
+| UI only, in a browser with sample data | `npm run dev`, then open `http://localhost:1420/preview.html`. Options: `focus`, `ai`, `preset=clock\|ai\|system`, `mode=compact`, `bg=0.6`, `tpl=splitFlap\|dotMatrix\|sevenSegment\|terminal\|minimal`, `sec`, `h12`, `live`, `panel=settings:PROFILES` (any tab) or `panel=system`. |
+| Type check, lint and front-end tests | `npm run check` |
 | Rust tests | `cd src-tauri && cargo test` |
 | Rust lint and format | `cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo fmt --check` |
-| Release build and installers (for publishing) | `npm run release`. Builds the standard and offline (WebView2 included) installers into `dist-release/`, strips local build paths from the binary, checks for leftovers, and prints SHA-256 checksums |
-| Plain release build (for yourself) | `npm run tauri:build` |
+| Installers for publishing | `npm run release` (see below) |
+| Installer for yourself | `npm run tauri:build` → `src-tauri/target/release/bundle/nsis/` |
 
-The installer is written to `src-tauri/target/release/bundle/nsis/FLIP_<version>_x64-setup.exe`. It installs per user, needs no admin rights, and adds a Start-menu entry and an uninstaller.
+**Publishing a release:** `npm run release` builds both installers into `dist-release/`, strips local build paths from the binary, **fails if your user name or project path is still inside `flip.exe`**, and prints SHA-256 checksums for the release notes. Don't publish a build from plain `npm run tauri:build`; it keeps those paths.
 
-No environment variables are required. FLIP reads `CODEX_HOME` only if you enable the Codex local-log source, and only to find Codex's own folder, so there is no `.env.example`.
+No environment variables are required. `CODEX_HOME` is read only when the Codex source is enabled.
 
-## Using FLIP
+## Architecture overview
 
-- **Hover** over the top strip to reveal the controls: layer (ON DESKTOP / ON TOP / NORMAL), SETTINGS, COMPACT, hide (—) and ✕. They fade after 3 s, which you can change.
-- **Click** the clock for clock settings, an AI row for provider detail, any system row for system detail, and the focus block for timer controls. These open in a separate panel window, so they are never trapped under other apps.
-- **Move and resize** in Windowed or Compact mode: drag the top strip and resize from the edges, or pick a region under Settings › Display. Ambient mode is fixed to the display.
-- **System-wide shortcuts** work even while FLIP is behind other windows, and you can change them under Settings › Keys:
-
-  | Default | Action |
-  |---|---|
-  | `Ctrl+Alt+F` | Show / hide |
-  | `Ctrl+Alt+S` | Settings |
-  | `Ctrl+Alt+L` | Next layout preset |
-  | `Ctrl+Alt+P` | Start / pause focus |
-
-- **Keys when FLIP has focus:** `Space` start/pause · `R` reset · `S` skip · `+` add 5 min · `P` timer · `,` settings · `C` compact · `M` next display mode · `L` next layout preset · `T` next layer · `H` hide · `Ctrl+Q` quit.
-- **Tray:** left-click shows or hides FLIP. Right-click offers focus controls, ambient/windowed/compact, keep on top, next layout, settings, **reset layout and position**, and **Quit**.
-- The ✕ control hides FLIP by default (Settings › Display). **Quit** is always in the tray menu.
-
-## AI usage: sources and prerequisites
-
-Subscription quotas are **not** the same as API usage. Neither Anthropic's nor OpenAI's public API reports consumer-plan limits (Claude Pro/Max 5-hour and weekly windows, ChatGPT-plan Codex limits). An API key reports API billing only. For that reason FLIP does not ask for API keys, passwords or tokens, stores no credentials, and makes **no network requests**.
-
-| Provider | Source | Confidence | Prerequisites | Limitations |
-|---|---|---|---|---|
-| Claude | **Claude Code status line** | High: Claude Code documents the `rate_limits` field in its status-line input | Claude Code on a Pro/Max plan. Add the snippet from Settings › AI to `%USERPROFILE%\.claude\settings.json`. | Updates only while Claude Code is running and redrawing its status line. The field appears after the first reply in a session. It replaces any status line you already use. Readings older than 15 min show **STALE**, and a window whose reset time has passed shows `--%` until new data arrives. |
-| Codex | **Codex CLI local logs** (opt-in) | Low: undocumented format | Codex CLI signed in with a ChatGPT plan. Sessions under `%USERPROFILE%\.codex\sessions` (or `CODEX_HOME`). | Reads `rate_limits` from `token_count` events. The format can change without notice. Data is only as fresh as your last Codex session. |
-| Either | **Manual entry** | User provided | Copy the values from the provider's usage page. | Labeled MANUAL, shows when it was entered, and goes stale after 12 h. |
-| Either | **Demo** | Demo | Debug builds only | Every row is tagged DEMO. Release builds cannot turn it on. |
-
-How the Claude bridge works: Claude Code runs `"…\flip.exe" --claude-statusline`, passing the status-line JSON on stdin. FLIP keeps **only** the two percentages and reset times. It discards everything else (paths, session IDs, model, cost), writes the result to `%APPDATA%\com.flip.dashboard\claude-statusline.json`, prints a one-line status such as `5H 24% · 7D 41%` back to Claude Code, and exits without opening a window.
-
-The last good reading per source is cached in `ai-cache.json`. When a refresh fails, the row keeps showing the cached values marked STALE, along with the error. Retries back off 30s → 2m → 5m → 15m.
-
-To add a provider later, implement `UsageProvider` in `src-tauri/src/services/ai_usage/` and add it to `providers_for`.
-
-## Architecture
+Built with **Tauri 2** (Rust, WebView2), **React 19 + TypeScript** and **Vite**. The UI reuses the design system in `design/`.
 
 ```
-src/                         React UI
-  components/                DigitalClock + ClockFace (Clock Studio templates, split-flap cards), DateDisplay, AIUsageTable, WorldClockTable, SystemMonitor,
-                             PomodoroPanel, StatusBar, StatusIndicator, primitives (DotMatrix, DotMeter, DotPlot, FlipText)
-  overlays/                  SettingsWindow, ProviderDetail, SystemDetail, TimerPopover (rendered in the panel window)
-  lib/                       clock.ts (template, digit-change and sizing helpers), types.ts (mirrors Rust models), ipc.ts (only file that calls Tauri), store.tsx, format.ts, layout.ts
-  styles/                    tokens.css + flip.css (from design/), app.css (layouts)
-  preview.tsx                dev-only browser preview with mocked IPC
+src/                        React UI
+  components/               ClockFace (Clock Studio templates), DigitalClock, AIUsageTable, WorldClockTable,
+                            SystemMonitor, PomodoroPanel, StatusBar, primitives (DotMatrix, DotMeter, DotPlot)
+  overlays/                 SettingsWindow, ProfilesTab, SystemDetail, ProviderDetail, TimerPopover (panel window)
+  lib/                      types.ts (mirrors the Rust models), ipc.ts (the only file that calls Tauri),
+                            store.tsx, format.ts, layout.ts, clock.ts
+  preview.tsx               development preview with mocked IPC
 src-tauri/src/
-  main.rs                    entry point; `--claude-statusline` bridge mode
-  lib.rs                     plugin wiring, setup, window events, shutdown
-  commands.rs                IPC commands (validated inputs)
-  runtime.rs                 background loops: clock + Pomodoro tick, system sampler thread, AI refresher
-  state.rs, paths.rs, error.rs
+  main.rs, lib.rs           entry point (incl. the Claude status-line bridge), plugin wiring, setup
+  commands.rs               IPC commands (validated inputs); profile switching
+  runtime.rs                background loops: clock + Pomodoro, system sampler + alerts, AI refresh,
+                            display checks + profile auto-switch
   services/
-    settings.rs              schema, defaults, validation, v0→v1 migration, corrupt-file recovery
-    world_clock.rs           home time, city times, DIFF labels, zone list
-    pomodoro.rs              deadline-based state machine + history
-    system_monitor.rs        sysinfo sampling and normalization
-    gpu.rs                   PDH GPU Engine counters, DXGI adapter name, NVML temperature
-    ai_usage/                provider trait, cache/backoff, claude_statusline, codex_logs, manual, demo
-    desktop_layer.rs         Win32: tool-window style, bottom-of-stack pinning (window subclass),
-                             Show Desktop handling (foreground event hook), fullscreen-app detection
-    window.rs                displays, display modes, region presets, saved rectangles, fallback, panel window
-    shortcuts.rs             system-wide shortcuts
-    tray.rs                  tray menu
-src-tauri/capabilities/default.json   least-privilege permissions
+    settings.rs             schema v5, defaults, validation, migrations from every earlier version
+    profiles.rs             built-in profiles, apply/capture, validation, auto-switch rules
+    system_monitor.rs       sysinfo sampling, disk I/O rates, limitations (unsupported vs error)
+    gpu.rs                  PDH GPU Engine + Adapter Memory counters, DXGI adapter, NVML temperature
+    alerts.rs               opt-in threshold alerts with cooldowns
+    window.rs               displays and stable monitor IDs, modes, regions, fallback, panel window
+    desktop_layer.rs        Win32 desktop layer, Show Desktop handling, fullscreen detection
+    tray.rs, shortcuts.rs, pomodoro.rs, world_clock.rs, ai_usage/
 ```
 
-Data flow: the backend pushes events (`flip://clock` every wall-clock second, `flip://system` every sample, `flip://pomodoro`, `flip://ai`, `flip://settings`, `flip://status` for displays and shortcut status, and `flip://panel` for the panel view). The front end subscribes once in `store.tsx` and runs no timers of its own for live data. Commands such as `update_settings` and `pomodoro_command` return the validated state, and the backend broadcasts it.
+The backend pushes events (`flip://clock` every second, `flip://system` every sample, plus pomodoro, ai, settings, status and panel), and the UI subscribes once in `store.tsx`. Commands return the validated state, which the backend also broadcasts to both windows. Profiles live inside `settings.json`: the live settings are what FLIP renders, and the active profile mirrors them.
 
-Persistence, all in `%APPDATA%\com.flip.dashboard\`:
+## Roadmap
 
-| File | Content |
-|---|---|
-| `settings.json` | Preferences and window placement. Written atomically. A corrupt file is renamed `settings.corrupt-<time>.json` and defaults are used. |
-| `pomodoro.json` | Timer state (including a running deadline) and 120 days of daily history. |
-| `ai-cache.json` | Last successful reading per AI source. |
-| `claude-statusline.json` | Written by the bridge. |
+**Done**
 
-Logs go to `%LOCALAPPDATA%\com.flip.dashboard\logs\FLIP.log` (512 KB, one rotation). Logs contain no credentials, usage values or file contents.
+- v0.1.0: desktop-embedded board, dot-matrix clock, world clocks, Pomodoro, system monitor, AI usage, tray, shortcuts, installer.
+- v0.2.0: Clock Studio and the split-flap clock, region presets, offline installer.
+- v0.3.0: multi-monitor profiles with stable monitor IDs and optional auto-switch, disk activity, GPU memory, available memory, N/A vs ERR states, opt-in alerts, next-profile shortcut.
 
-There is no database: settings, timer history and the AI cache are small documents, and nothing queries them.
+**Next**
 
-## Security
+- Optional "hide while a fullscreen app runs" for every layer.
+- Different profiles on different monitors at the same time (one dashboard window per monitor).
+- Auto-switch rules based on which monitors are connected, not just how many.
+- Night dimming and pixel shift for always-on displays.
+- A 24-hour AI usage history chart.
+- Drag-and-drop ordering for modules and cities.
+- Code-signed installers.
 
-- The dashboard and panel windows get only `core:event` listen/unlisten, `core:window:allow-start-dragging` (for dragging the borderless windows) and FLIP's twelve commands, each allow-listed through `build.rs`. There is no filesystem, shell, HTTP, opener or clipboard-plugin permission. Panel views and region names are allow-listed.
-- Desktop embedding uses documented Win32 calls on FLIP's own windows only (`SetWindowPos`, `SetWindowSubclass`, `SetWinEventHook` with `WINEVENT_OUTOFCONTEXT`, `SHQueryUserNotificationState`). Nothing is injected into Explorer, and FLIP is not reparented into the desktop.
-- Commands validate every input. City count, label lengths, time zones, percentages and window keys are all checked, and window placement is backend-owned. Provider IDs are allow-listed.
-- CSP: `default-src 'self'`, no remote scripts, `connect-src` limited to Tauri IPC.
-- The only files FLIP reads outside its own data directory are Codex session logs, and only when you enable that source.
+## Contributing
 
-## Limitations
+Issues and pull requests are welcome.
 
-- **CPU temperature is always N/A.** Windows has no documented, unelevated API for CPU die temperature. The WMI ACPI thermal zone needs admin rights and is not the CPU temperature, and vendor sensor drivers (e.g. LibreHardwareMonitor's kernel driver) need elevation. FLIP shows N/A and explains why in the System detail view.
-- **GPU temperature** needs NVIDIA's `nvml.dll` (installed with NVIDIA drivers). AMD and Intel GPUs show N/A.
-- **GPU load** needs WDDM 2.0+ drivers. The first sample is N/A because rates need two readings.
-- **AI usage** is only as fresh as the source. See the table above.
-- **Desktop layer, not wallpaper layer.** FLIP stays under your apps and stays clickable. It is not drawn behind the desktop icons the way Wallpaper Engine does it: that needs undocumented Explorer internals, and it would block hover and clicks. So in Ambient mode on your *main* monitor, FLIP covers the desktop icons. Use Windowed or Compact with a region there.
-- **Show Desktop (Win+D):** FLIP lifts itself above the desktop when the desktop takes the foreground, and drops back when you switch to an app. This was verified with unit tests of the decision logic and a live check of the window's style and position in the stack. The Win+D keypress itself was not exercised end to end in the build environment.
-- **Virtual desktops:** FLIP stays on the virtual desktop where it was started. Showing it on every virtual desktop would need an undocumented Windows interface.
-- **Opacity:** a see-through background is supported, not a see-through window. At low opacity, unlit "ghost" dots can look muddy over bright wallpapers; turn them off under Settings › Clock.
-- **Placement** is stored in physical pixels per mode. If the chosen display disappears, FLIP shows on the primary monitor within 5 s and returns when the display does.
-- **Not built yet:** click-through, pixel shift, night dimming, the 24-hour AI usage history chart, drag-and-drop ordering (↑/↓ buttons instead) and the tray flyout window (a native menu instead).
-- **Memory:** the Rust process uses about 35 MB and under 1% of a core. WebView2 helper processes add roughly 150–350 MB of working set depending on GPU and driver, so the 120 MB target in `docs/HANDOFF.md` is not met.
-- Development builds show notifications under PowerShell's name. The installed build uses FLIP's identity.
+- Open an issue first for larger changes so we can agree on the approach.
+- Keep the board's monochrome, glanceable design, and keep FLIP local: no network calls, telemetry or credentials.
+- Never show a made-up value. If a reading isn't available, show N/A and explain why.
+- Before submitting, run `npm run check` and, in `src-tauri`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test`.
+- Settings changes need a migration and a test that an older settings file still loads.
 
-## Troubleshooting
-
-| Symptom | Fix |
-|---|---|
-| `link.exe not found` / MSVC errors during build | Install VS 2022 Build Tools with the C++ workload, then open a new terminal. |
-| FLIP doesn't appear | It may be hidden (Start hidden, ✕ or H). Click the tray icon or press `Ctrl+Alt+F`. In the ON DESKTOP layer it is *under* your apps: minimise them or press Win+D. |
-| FLIP is in the wrong place or the wrong size | Tray › **Reset layout and position**, or Settings › Display › Recovery. |
-| Can't find FLIP in Alt+Tab or the taskbar | By design. Use the tray icon or `Ctrl+Alt+F`. |
-| Claude row says WAITING FOR CLAUDE CODE | Check the `statusLine` snippet in `%USERPROFILE%\.claude\settings.json` points to the current `flip.exe` path (it changes between dev and installed builds), and that you're on a Pro/Max plan with at least one reply in the session. |
-| Codex row says NO RATE-LIMIT DATA | Run a Codex CLI session signed in with a ChatGPT plan. If Codex has changed its log format, use Manual. |
-| A shortcut does nothing | Another app owns it. Settings › Keys marks it IN USE BY ANOTHER APP; pick a different one. |
-| Settings reset unexpectedly | The file was unreadable. Look for `settings.corrupt-*.json` next to it. Older (v1) files are migrated automatically. |
-| Blank window | WebView2 Runtime is missing or broken. Reinstall it from Microsoft. |
-
-## Publishing a release
-
-1. Run `npm run check` and `cd src-tauri && cargo test`.
-2. Run `npm run release`. Rust normally embeds absolute source paths, including your Windows user profile, in the binary. The script remaps them and **fails if your user name, profile path or project path is still inside `flip.exe`**.
-3. Upload both installers from `dist-release/` (`FLIP_<version>_x64-setup.exe` and `FLIP_<version>_x64-offline-setup.exe`) to a GitHub release and paste the SHA-256 checksums it printed into the release notes.
-
-Never publish a build from plain `npm run tauri:build`; it keeps those local paths.
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version and [docs/HANDOFF.md](docs/HANDOFF.md) for the original design handoff.
 
 ## License
 
 [MIT](LICENSE) © FLIP contributors. Free to use, modify and redistribute.
 
-Bundled third-party assets: JetBrains Mono ([SIL Open Font License 1.1](src/fonts/OFL.txt)). Rust and npm dependencies keep their own licences (MIT / Apache-2.0 and compatible).
+Bundled: JetBrains Mono ([SIL Open Font License 1.1](src/fonts/OFL.txt)). Rust and npm dependencies keep their own licences (MIT / Apache-2.0 and compatible).
 
 Claude and Codex are trademarks of their respective owners. FLIP is an independent project, not affiliated with or endorsed by Anthropic or OpenAI.
-
-## Design assets
-
-The original design package is kept unchanged:
-
-- `prototype/FLIP-prototype.html`: interactive single-file prototype. Its sample values are illustrative.
-- `design/screens/`: 1920×1080 renders of the 11 screens.
-- `design/tokens/`, `design/components/`, `design/fonts/`: tokens, component CSS and JS, JetBrains Mono (SIL OFL 1.1).
-- `docs/HANDOFF.md`: developer handoff (component hierarchy, states, shortcuts, Windows notes).

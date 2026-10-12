@@ -1,6 +1,6 @@
 [package]
 name = "flip"
-version = "0.2.0"
+version = "0.3.0"
 description = "FLIP: an airport-board clock and productivity dashboard for Windows"
 license = "MIT"
 edition = "2021"

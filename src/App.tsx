@@ -43,6 +43,12 @@ export function presetFor(layout: Layout, preset: LayoutPreset): LayoutPreset {
 }
 
 /** Clock dot pitch (digit height / 7) per layout and preset, in 1080p design pixels. */
+/** The profile after the active one, wrapping around (same order as the tray and the shortcut). */
+export function nextProfileId(p: Settings['profiles']): string {
+  const i = p.items.findIndex((x) => x.id === p.active);
+  return p.items[(i + 1) % p.items.length]?.id ?? p.active;
+}
+
 export function clockPitch(layout: Layout, preset: LayoutPreset): number {
   if (layout === 'full') return PRESET_PITCH[preset];
   if (layout === 'compact') return COMPACT_PITCH[preset];
@@ -132,10 +138,13 @@ export function Dashboard() {
       else if (k === 'l' || k === 'L') void set((x) => ({ ...x, modules: { ...x.modules, preset: NEXT_PRESET[x.modules.preset] } }));
       else if (k === 'm' || k === 'M') void set((x) => ({ ...x, window: { ...x.window, mode: NEXT_MODE[x.window.mode] } }));
       else if (k === 'h' || k === 'H') void actions.window('hide');
+      else if (k === 'n' || k === 'N') {
+        void actions.activateProfile(nextProfileId(s.profiles));
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [actions, toggleCompact, cycleLayer, set]);
+  }, [actions, toggleCompact, cycleLayer, set, s.profiles]);
 
   const bg = boardColor(s.appearance.background, state.runtime?.desktopColor);
   const style = {
@@ -161,7 +170,9 @@ export function Dashboard() {
   const nowMs = clock.epochMs;
   const pitch = clockPitch(layout, preset);
   const displays = state.runtime?.displays ?? [];
-  const here = displays.find((d) => d.id === s.window.display) ?? displays.find((d) => d.primary);
+  const saved = s.window.displayId ? displays.find((d) => d.stableId === s.window.displayId) : displays.find((d) => d.id === s.window.display);
+  const here = saved ?? displays.find((d) => d.primary);
+  const profile = s.profiles.items.find((p) => p.id === s.profiles.active);
   const notice = state.runtime?.displayNotice ?? null;
   const leftStyle = preset === 'system' ? ({ '--u': (u * 1.2).toFixed(4) } as CSSProperties) : undefined;
   const meterCells = preset === 'ai' ? 32 : 22;
@@ -177,7 +188,7 @@ export function Dashboard() {
           ai={state.ai}
           aiRefreshing={state.aiRefreshing}
           error={state.error ?? notice}
-          context={here ? here.label.replace(' · PRIMARY', '') : ''}
+          context={[profile?.name, here ? here.label.replace(' · PRIMARY', '') : ''].filter(Boolean).join(' · ')}
           showControls={!idle}
           dragRegion={movable}
           onLayer={cycleLayer}
@@ -212,6 +223,9 @@ export function Dashboard() {
                 </span>
                 <span>
                   <kbd>{s.shortcuts.focus.toUpperCase()}</kbd> FOCUS
+                </span>
+                <span>
+                  <kbd>{s.shortcuts.profile.toUpperCase()}</kbd> PROFILE
                 </span>
               </div>
             )}

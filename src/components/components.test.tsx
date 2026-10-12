@@ -115,6 +115,32 @@ describe('SystemMonitor', () => {
     expect(screen.queryByText('LOAD 60S')).not.toBeInTheDocument();
     expect(screen.queryByText('DISK C:')).not.toBeInTheDocument();
   });
+
+  it('tells a temporary read failure (ERR) apart from an unsupported metric (N/A)', () => {
+    const sys = system();
+    sys.limitations = [
+      { metric: 'GPU LOAD', reason: 'Temporary read failure', kind: 'error' },
+      { metric: 'GPU TEMP', reason: 'No NVIDIA driver', kind: 'unsupported' },
+    ];
+    render(<SystemMonitor sys={sys} cfg={settings().system} condensed={false} onOpen={() => {}} />);
+    const err = screen.getByText('ERR');
+    expect(err).toHaveClass('fl-warn');
+    expect(err).toHaveAttribute('title', 'Reading failed; retrying');
+    expect(screen.getAllByText('N/A').every((e) => e.classList.contains('fl-ink3'))).toBe(true);
+  });
+
+  it('shows disk activity, or N/A when Windows reports no counters', () => {
+    const { rerender } = render(<SystemMonitor sys={system()} cfg={settings().system} condensed={false} onOpen={() => {}} />);
+    expect(screen.getByText('DISK I/O')).toBeInTheDocument();
+    const sys = system();
+    sys.diskIo = { readBytesPerSec: null, writeBytesPerSec: null };
+    sys.limitations = [];
+    sys.gpu.usage = 0.5;
+    sys.cpu.temperatureC = 50;
+    sys.gpu.temperatureC = 60;
+    rerender(<SystemMonitor sys={sys} cfg={settings().system} condensed={false} onOpen={() => {}} />);
+    expect(screen.getAllByText('N/A')).toHaveLength(2); // read and write, never 0
+  });
 });
 
 describe('PomodoroPanel', () => {

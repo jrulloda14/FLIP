@@ -14,6 +14,11 @@ fn main() {
         "close_panel",
         "apply_region",
         "reset_layout",
+        "activate_profile",
+        "create_profile",
+        "rename_profile",
+        "delete_profile",
+        "reset_profile",
     ])))
     .expect("failed to run tauri-build");
 }

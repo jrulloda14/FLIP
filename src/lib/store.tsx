@@ -139,6 +139,12 @@ export interface Actions {
   restoreDefaults: () => Promise<void>;
   resetLayout: () => Promise<void>;
   applyRegion: (r: Region) => Promise<void>;
+  activateProfile: (id: string) => Promise<void>;
+  /** `from` = profile to copy; null captures the current layout. Resolves true on success. */
+  createProfile: (name: string, from: string | null) => Promise<boolean>;
+  renameProfile: (id: string, name: string) => Promise<boolean>;
+  deleteProfile: (id: string) => Promise<void>;
+  resetProfile: (id: string) => Promise<void>;
   pomodoro: (c: PomodoroCommand) => Promise<void>;
   refreshAi: () => Promise<void>;
   setManualUsage: (providerId: string, windows: ManualWindow[]) => Promise<void>;
@@ -223,6 +229,28 @@ export function FlipProvider({ children, surface = currentSurface() }: { childre
       },
       applyRegion: async (r) => {
         const s = await run(api.applyRegion(r));
+        if (s) dispatch({ t: 'settings', s });
+      },
+      activateProfile: async (id) => {
+        const s = await run(api.activateProfile(id));
+        if (s) dispatch({ t: 'settings', s });
+      },
+      createProfile: async (name, from) => {
+        const s = await run(api.createProfile(name, from));
+        if (s) dispatch({ t: 'settings', s });
+        return Boolean(s);
+      },
+      renameProfile: async (id, name) => {
+        const s = await run(api.renameProfile(id, name));
+        if (s) dispatch({ t: 'settings', s });
+        return Boolean(s);
+      },
+      deleteProfile: async (id) => {
+        const s = await run(api.deleteProfile(id));
+        if (s) dispatch({ t: 'settings', s });
+      },
+      resetProfile: async (id) => {
+        const s = await run(api.resetProfile(id));
         if (s) dispatch({ t: 'settings', s });
       },
       pomodoro: async (c) => {

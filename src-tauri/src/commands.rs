@@ -11,6 +11,7 @@ use tauri_plugin_autostart::ManagerExt as _;
 use crate::error::{AppError, AppResult};
 use crate::services::ai_usage::{self, UsageSnapshot};
 use crate::services::pomodoro::{self, Command, View};
+use crate::services::profiles::{self, Profile};
 use crate::services::settings::{
     self, AppearanceSettings, ClaudeSource, CodexSource, ManualUsage, ManualWindow, ModuleSettings, Settings, WindowSettings,
 };
@@ -122,19 +123,38 @@ pub fn get_bootstrap(app: AppHandle, state: State<'_, AppState>) -> AppResult<Bo
     })
 }
 
-/// Validates, stores, persists and applies new settings, then broadcasts them.
-pub fn store_settings(app: &AppHandle, state: &AppState, mut next: Settings) -> AppResult<Settings> {
-    let fixes = next.validate(state.allow_demo);
-    if !fixes.is_empty() {
-        log::info!("settings adjusted on save: {}", fixes.join("; "));
-    }
+/// Who produced a settings update.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Origin {
+    /// The settings panel. It may hold stale copies of backend-owned fields.
+    Ui,
+    /// The backend itself (tray, shortcuts, profile switches), starting from the current state.
+    Backend,
+}
+
+/// Validates, stores, persists and applies settings from the settings panel, then broadcasts them.
+pub fn store_settings(app: &AppHandle, state: &AppState, next: Settings) -> AppResult<Settings> {
+    store_settings_from(app, state, next, Origin::Ui)
+}
+
+pub fn store_settings_from(app: &AppHandle, state: &AppState, mut next: Settings, origin: Origin) -> AppResult<Settings> {
     let prev = {
         let mut cur = state.settings_mut();
-        // Saved rectangles are owned by the backend; the webview may hold an older copy.
-        next.window.windowed_rect = cur.window.windowed_rect.clone();
-        next.window.compact_rect = cur.window.compact_rect.clone();
-        next.window.windowed_region = cur.window.windowed_region;
-        next.window.compact_region = cur.window.compact_region;
+        if origin == Origin::Ui {
+            // Saved rectangles, regions and the profile list are owned by the backend; the
+            // webview may hold an older copy. Profiles change only through the profile commands.
+            next.window.windowed_rect = cur.window.windowed_rect.clone();
+            next.window.compact_rect = cur.window.compact_rect.clone();
+            next.window.windowed_region = cur.window.windowed_region;
+            next.window.compact_region = cur.window.compact_region;
+            next.profiles.items = cur.profiles.items.clone();
+            next.profiles.active = cur.profiles.active.clone();
+        }
+        // Validation also writes the live layout back into the active profile.
+        let fixes = next.validate(state.allow_demo);
+        if !fixes.is_empty() {
+            log::info!("settings adjusted on save: {}", fixes.join("; "));
+        }
         std::mem::replace(&mut *cur, next.clone())
     };
     settings::save(&state.paths.settings(), &next)?;
@@ -146,7 +166,7 @@ pub fn store_settings(app: &AppHandle, state: &AppState, mut next: Settings) -> 
 pub fn mutate_settings(app: &AppHandle, state: &AppState, f: impl FnOnce(&mut Settings)) -> AppResult<Settings> {
     let mut s = state.settings().clone();
     f(&mut s);
-    store_settings(app, state, s)
+    store_settings_from(app, state, s, Origin::Backend)
 }
 
 /// Positions the dashboard for its mode and display, applies the layer, and reports fallback.
@@ -161,7 +181,16 @@ pub fn apply_window(app: &AppHandle, state: &AppState, w: &WindowSettings) {
 
 fn apply_side_effects(app: &AppHandle, state: &AppState, prev: &Settings, next: &Settings) {
     let (pw, nw) = (&prev.window, &next.window);
-    if pw.mode != nw.mode || pw.display != nw.display {
+    // Placement changes (mode, display, or a profile switch that brings its own rectangles).
+    let placement_changed = pw.mode != nw.mode
+        || pw.display != nw.display
+        || pw.display_id != nw.display_id
+        || pw.windowed_rect != nw.windowed_rect
+        || pw.compact_rect != nw.compact_rect
+        || pw.windowed_region != nw.windowed_region
+        || pw.compact_region != nw.compact_region;
+    if placement_changed {
+        // Moves and resizes only; never activates or focuses the window.
         apply_window(app, state, nw);
     } else if pw.layer != nw.layer {
         if let Some(win) = window::main_window(app) {
@@ -199,7 +228,8 @@ pub fn update_settings(app: AppHandle, state: State<'_, AppState>, settings: Set
 
 #[tauri::command]
 pub fn restore_default_settings(app: AppHandle, state: State<'_, AppState>) -> AppResult<Settings> {
-    let s = store_settings(&app, &state, Settings::default())?;
+    // "Everything": defaults including the profile list.
+    let s = store_settings_from(&app, &state, Settings::default(), Origin::Backend)?;
     reset_rects(&app, &state);
     Ok(s)
 }
@@ -357,6 +387,134 @@ pub async fn clear_manual_usage(app: AppHandle, state: State<'_, AppState>, prov
         s.ai.manual.remove(&provider_id);
     })?;
     Ok(refresh_ai_now(&app, true).await)
+}
+
+// ------------------------------------------------------------------ profiles
+
+/// Switches to a profile: copies its snapshot into the live settings and re-places the window
+/// (without focusing it). Global preferences are untouched.
+pub fn activate_profile_now(app: &AppHandle, state: &AppState, id: &str) -> AppResult<Settings> {
+    let cur = state.settings().clone();
+    let p = cur.profiles.items.iter().find(|p| p.id == id).cloned().ok_or_else(|| AppError::Invalid("unknown profile".into()))?;
+    let mut next = cur;
+    profiles::apply(&mut next, &p);
+    next.profiles.active = p.id.clone();
+    let s = store_settings_from(app, state, next, Origin::Backend)?;
+    log::info!("profile switched to {}", p.name);
+    Ok(s)
+}
+
+#[tauri::command]
+pub fn activate_profile(app: AppHandle, state: State<'_, AppState>, id: String) -> AppResult<Settings> {
+    activate_profile_now(&app, &state, &id)
+}
+
+/// Creates a custom profile from another profile (`from`) or from the current layout, and
+/// switches to it.
+#[tauri::command]
+pub fn create_profile(app: AppHandle, state: State<'_, AppState>, name: String, from: Option<String>) -> AppResult<Settings> {
+    let cur = state.settings().clone();
+    if cur.profiles.items.len() >= profiles::MAX_PROFILES {
+        return Err(AppError::Invalid(format!("up to {} profiles", profiles::MAX_PROFILES)));
+    }
+    let id = profiles::new_id(&cur.profiles.items, Utc::now().timestamp_millis());
+    let name = profiles::unique_name(&cur.profiles.items, &name);
+    let mut p = match from.as_deref() {
+        Some(src) => cur.profiles.items.iter().find(|p| p.id == src).cloned().ok_or_else(|| AppError::Invalid("unknown profile".into()))?,
+        None => profiles::capture(&cur, "", "", false),
+    };
+    p.id = id.clone();
+    p.name = name;
+    p.builtin = false;
+    let mut next = cur;
+    next.profiles.items.push(p);
+    store_settings_from(&app, &state, next, Origin::Backend)?;
+    activate_profile_now(&app, &state, &id)
+}
+
+#[tauri::command]
+pub fn rename_profile(app: AppHandle, state: State<'_, AppState>, id: String, name: String) -> AppResult<Settings> {
+    let cur = state.settings().clone();
+    let clean = profiles::clean_name(&name);
+    if clean.is_empty() {
+        return Err(AppError::Invalid("enter a name".into()));
+    }
+    let others: Vec<_> = cur.profiles.items.iter().filter(|p| p.id != id).cloned().collect();
+    if others.iter().any(|p| p.name == clean) {
+        return Err(AppError::Invalid("another profile already has that name".into()));
+    }
+    let mut next = cur;
+    let p = next.profiles.items.iter_mut().find(|p| p.id == id).ok_or_else(|| AppError::Invalid("unknown profile".into()))?;
+    if p.builtin {
+        return Err(AppError::Invalid("built-in profiles cannot be renamed; duplicate it instead".into()));
+    }
+    p.name = clean;
+    store_settings_from(&app, &state, next, Origin::Backend)
+}
+
+#[tauri::command]
+pub fn delete_profile(app: AppHandle, state: State<'_, AppState>, id: String) -> AppResult<Settings> {
+    let cur = state.settings().clone();
+    let p = cur.profiles.items.iter().find(|p| p.id == id).ok_or_else(|| AppError::Invalid("unknown profile".into()))?;
+    if p.builtin {
+        return Err(AppError::Invalid("built-in profiles cannot be deleted".into()));
+    }
+    let was_active = cur.profiles.active == id;
+    let mut next = cur;
+    next.profiles.items.retain(|p| p.id != id);
+    if was_active {
+        // Move to CUSTOM first so the deleted layout is not written back anywhere.
+        next.profiles.active = "custom".into();
+        if let Some(c) = next.profiles.items.iter().find(|p| p.id == "custom").cloned() {
+            profiles::apply(&mut next, &c);
+        }
+    }
+    store_settings_from(&app, &state, next, Origin::Backend)
+}
+
+/// Restores a built-in profile to its factory layout (applied immediately if it is active).
+#[tauri::command]
+pub fn reset_profile(app: AppHandle, state: State<'_, AppState>, id: String) -> AppResult<Settings> {
+    if !profiles::BUILTIN_IDS.contains(&id.as_str()) {
+        return Err(AppError::Invalid("only built-in profiles can be reset".into()));
+    }
+    let cur = state.settings().clone();
+    let fresh = profiles::builtin(&id);
+    let mut next = cur;
+    let is_active = next.profiles.active == id;
+    if let Some(p) = next.profiles.items.iter_mut().find(|p| p.id == id) {
+        *p = Profile { name: p.name.clone(), ..fresh.clone() };
+    }
+    if is_active {
+        profiles::apply(&mut next, &fresh);
+    }
+    store_settings_from(&app, &state, next, Origin::Backend)
+}
+
+/// Optional automatic switching when the number of connected displays changes.
+pub fn auto_switch_profile(app: &AppHandle, state: &AppState, display_count: usize) {
+    let (rules, active) = {
+        let s = state.settings();
+        (s.profiles.auto_switch.clone(), s.profiles.active.clone())
+    };
+    if let Some(target) = profiles::auto_switch_target(&rules, display_count, &active) {
+        match activate_profile_now(app, state, &target) {
+            Ok(_) => log::info!("auto-switched profile after a display change ({display_count} display(s))"),
+            Err(e) => log::warn!("auto-switch failed: {e}"),
+        }
+    }
+}
+
+/// Cycles to the next profile in list order (shortcut).
+pub fn next_profile(app: &AppHandle, state: &AppState) {
+    let (ids, active) = {
+        let s = state.settings();
+        (s.profiles.items.iter().map(|p| p.id.clone()).collect::<Vec<_>>(), s.profiles.active.clone())
+    };
+    let i = ids.iter().position(|id| *id == active).unwrap_or(0);
+    if let Some(next) = ids.get((i + 1) % ids.len().max(1)) {
+        let _ = activate_profile_now(app, state, next);
+    }
 }
 
 /// Opens the settings/detail panel on a given view.

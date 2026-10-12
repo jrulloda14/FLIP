@@ -4,9 +4,10 @@ import { Head, OnOff, Row, Seg, Sheet } from '../components/controls';
 import { TEMPLATES, safeTemplate, shouldAnimate, useReducedMotion } from '../lib/clock';
 import { clockText, dateText } from '../lib/format';
 import { useFlip } from '../lib/store';
-import type { City, ClockSnapshot, ModuleId, PlatformInfo, Region, RuntimeStatus, Settings, ShortcutSettings } from '../lib/types';
+import type { City, ClockSnapshot, DisplayInfo, ModuleId, PlatformInfo, Region, RuntimeStatus, Settings, ShortcutSettings } from '../lib/types';
+import { displayFor, ProfilesTab } from './ProfilesTab';
 
-export const TABS = ['DISPLAY', 'CLOCK', 'LOCATIONS', 'AI', 'FOCUS', 'MODULES', 'SYSTEM', 'KEYS'] as const;
+export const TABS = ['DISPLAY', 'PROFILES', 'CLOCK', 'LOCATIONS', 'AI', 'FOCUS', 'MODULES', 'SYSTEM', 'KEYS'] as const;
 
 /** Suggestions for the add-city form. Any IANA zone can be typed instead. */
 export const CITY_PRESETS: City[] = [
@@ -561,19 +562,21 @@ export function ModulesTab({ s, set }: { s: Settings; set: Upd }) {
 function SystemTab({ s, set }: { s: Settings; set: Upd }) {
   const y = s.system;
   const put = (patch: Partial<Settings['system']>) => set((x) => ({ ...x, system: { ...x.system, ...patch } }));
+  const a = s.alerts;
+  const putA = (patch: Partial<Settings['alerts']>) => set((x) => ({ ...x, alerts: { ...x.alerts, ...patch } }));
   return (
     <>
       <Head>METRICS</Head>
       <Row label="TEMPERATURES" hint="GPU temperature needs an NVIDIA driver; CPU temperature is N/A on Windows">
         <OnOff value={y.temps} onChange={(v) => put({ temps: v })} label="Temperatures" />
       </Row>
-      <Row label="GPU" hint="Windows GPU Engine counters (WDDM 2.0+)">
+      <Row label="GPU" hint="Load and memory from Windows GPU counters (WDDM 2.0+)">
         <OnOff value={y.gpu} onChange={(v) => put({ gpu: v })} label="GPU" />
       </Row>
       <Row label="NETWORK">
         <OnOff value={y.net} onChange={(v) => put({ net: v })} label="Network" />
       </Row>
-      <Row label="DISKS">
+      <Row label="DISKS" hint="Space per drive and read/write activity">
         <OnOff value={y.disk} onChange={(v) => put({ disk: v })} label="Disks" />
       </Row>
       <Row label="CPU HISTORY">
@@ -586,6 +589,42 @@ function SystemTab({ s, set }: { s: Settings; set: Upd }) {
       <Row label="TEMPERATURE">
         <Seg value={y.tempUnit} options={[['C', '°C'], ['F', '°F']]} onChange={(v) => put({ tempUnit: v })} label="Temperature unit" />
       </Row>
+      <Head>ALERTS · OPTIONAL · WINDOWS NOTIFICATIONS ONLY</Head>
+      <div className="fl-note">FLIP only notifies you. It never closes apps, frees memory, deletes files or changes your system.</div>
+      <Row label="HIGH CPU" hint={a.cpu ? `When total CPU stays at or above ${a.cpuPercent}% for ${a.cpuMinutes} min` : 'Off'}>
+        <OnOff value={a.cpu} onChange={(v) => putA({ cpu: v })} label="High CPU alert" />
+      </Row>
+      {a.cpu && (
+        <>
+          <Row label="CPU AT OR ABOVE">
+            <Seg value={a.cpuPercent} options={[[80, '80%'], [90, '90%'], [95, '95%']]} onChange={(v) => putA({ cpuPercent: v })} label="CPU threshold" />
+          </Row>
+          <Row label="FOR AT LEAST">
+            <Seg value={a.cpuMinutes} options={[[1, '1 MIN'], [2, '2 MIN'], [5, '5 MIN'], [10, '10 MIN']]} onChange={(v) => putA({ cpuMinutes: v })} label="CPU duration" />
+          </Row>
+        </>
+      )}
+      <Row label="HIGH MEMORY" hint={a.memory ? `When memory use reaches ${a.memoryPercent}%` : 'Off'}>
+        <OnOff value={a.memory} onChange={(v) => putA({ memory: v })} label="High memory alert" />
+      </Row>
+      {a.memory && (
+        <Row label="MEMORY AT OR ABOVE">
+          <Seg value={a.memoryPercent} options={[[80, '80%'], [90, '90%'], [95, '95%']]} onChange={(v) => putA({ memoryPercent: v })} label="Memory threshold" />
+        </Row>
+      )}
+      <Row label="LOW DISK SPACE" hint={a.disk ? `When any drive has less than ${a.diskFreePercent}% free` : 'Off'}>
+        <OnOff value={a.disk} onChange={(v) => putA({ disk: v })} label="Low disk space alert" />
+      </Row>
+      {a.disk && (
+        <Row label="FREE SPACE BELOW">
+          <Seg value={a.diskFreePercent} options={[[5, '5%'], [10, '10%'], [15, '15%'], [20, '20%']]} onChange={(v) => putA({ diskFreePercent: v })} label="Disk threshold" />
+        </Row>
+      )}
+      {(a.cpu || a.memory || a.disk) && (
+        <Row label="REPEAT AT MOST" hint="Each alert type waits this long before notifying again">
+          <Seg value={a.cooldownMinutes} options={[[15, '15 MIN'], [30, '30 MIN'], [60, '1 H'], [240, '4 H']]} onChange={(v) => putA({ cooldownMinutes: v })} label="Alert cooldown" />
+        </Row>
+      )}
     </>
   );
 }
@@ -607,20 +646,35 @@ export function DisplayTab({ s, set, status }: { s: Settings; set: Upd; status: 
   const w = s.window;
   const put = (patch: Partial<Settings['window']>) => set((x) => ({ ...x, window: { ...x.window, ...patch } }));
   const displays = status?.displays ?? [];
-  const missing = w.display !== null && !displays.some((d) => d.id === w.display);
+  const chosen = displayFor(w, displays);
+  const missing = chosen === 'missing';
+  const keyOf = (d: DisplayInfo) => d.stableId ?? d.id;
+  const pick = (key: string) => {
+    const d = displays.find((x) => keyOf(x) === key);
+    if (d) put({ display: d.id, displayId: d.stableId });
+    else if (key === '') put({ display: null, displayId: null });
+  };
   const currentRegion = w.mode === 'compact' ? w.compactRegion : w.mode === 'windowed' ? w.windowedRegion : null;
   return (
     <>
       <Head>PLACEMENT</Head>
-      <Row label="DISPLAY" hint={missing ? 'Chosen display is not connected · showing on primary' : 'Which monitor FLIP lives on'}>
-        <select className="fl-select" aria-label="Display" value={w.display ?? ''} onChange={(e) => put({ display: e.target.value || null })}>
+      <Row
+        label="DISPLAY"
+        hint={missing ? 'Chosen display is not connected · showing on primary until it returns' : 'Remembered by monitor, even if Windows renumbers displays'}
+      >
+        <select
+          className="fl-select"
+          aria-label="Display"
+          value={missing ? '__missing' : chosen === null ? '' : keyOf(chosen)}
+          onChange={(e) => pick(e.target.value)}
+        >
           <option value="">PRIMARY MONITOR</option>
           {displays.map((d) => (
-            <option key={d.id} value={d.id}>
+            <option key={keyOf(d)} value={keyOf(d)}>
               {d.label}
             </option>
           ))}
-          {missing && <option value={w.display!}>{w.display} · NOT CONNECTED</option>}
+          {missing && <option value="__missing">SAVED DISPLAY · NOT CONNECTED</option>}
         </select>
       </Row>
       <Row label="MODE" hint="AMBIENT fills the display · WINDOWED shares it with apps · COMPACT is a small board">
@@ -779,6 +833,7 @@ const SHORTCUT_LABEL: Record<keyof ShortcutSettings, string> = {
   settings: 'SETTINGS',
   layout: 'NEXT LAYOUT PRESET',
   focus: 'START / PAUSE FOCUS',
+  profile: 'NEXT PROFILE',
 };
 
 function ShortcutInput({ id, s, set, status }: { id: keyof ShortcutSettings; s: Settings; set: Upd; status: string | undefined }) {
@@ -822,6 +877,7 @@ const KEYS: [string, string][] = [
   ['M', 'Next display mode'],
   ['L', 'Next layout preset'],
   ['T', 'Next window layer'],
+  ['N', 'Next profile'],
   ['H', 'Hide'],
   ['CTRL+Q', 'Quit'],
 ];
@@ -866,6 +922,7 @@ export function SettingsWindow() {
       </div>
       <div role="tabpanel" aria-label={tab}>
         {tab === 'DISPLAY' && <DisplayTab s={s} set={set} status={state.runtime} />}
+        {tab === 'PROFILES' && <ProfilesTab s={s} set={set} displays={state.runtime?.displays ?? []} />}
         {tab === 'CLOCK' && <ClockTab s={s} set={set} clock={clock} zones={boot.timeZones} systemZone={boot.systemTimeZone} />}
         {tab === 'LOCATIONS' && <LocationsTab s={s} set={set} clock={clock} zones={boot.timeZones} />}
         {tab === 'AI' && <AiTab s={s} set={set} platform={boot.platform} />}
@@ -875,7 +932,7 @@ export function SettingsWindow() {
         {tab === 'KEYS' && (
           <>
             <Head>SYSTEM-WIDE SHORTCUTS</Head>
-            {(['toggle', 'settings', 'layout', 'focus'] as const).map((id) => (
+            {(['toggle', 'settings', 'layout', 'focus', 'profile'] as const).map((id) => (
               <ShortcutInput key={id + s.shortcuts[id]} id={id} s={s} set={set} status={sc[id]} />
             ))}
             <Head>WHEN FLIP HAS FOCUS</Head>

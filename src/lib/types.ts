@@ -126,8 +126,10 @@ export interface Placement {
 export interface WindowSettings {
   mode: DisplayMode;
   layer: WindowLayer;
-  /** Monitor device name; null = primary. */
+  /** Monitor device name; null = primary. Used only when no stable id is saved. */
   display: string | null;
+  /** Stable monitor id (survives re-plugging); preferred over `display`. */
+  displayId: string | null;
   launchOnStartup: boolean;
   startHidden: boolean;
   closeToTray: boolean;
@@ -144,11 +146,48 @@ export interface ShortcutSettings {
   settings: string;
   layout: string;
   focus: string;
+  /** Cycle to the next profile. */
+  profile: string;
 }
 
 export interface NotificationSettings {
   focusComplete: boolean;
   breakComplete: boolean;
+}
+
+/** Opt-in threshold notifications. FLIP only notifies; it never acts on the system. */
+export interface AlertSettings {
+  cpu: boolean;
+  cpuPercent: number;
+  cpuMinutes: number;
+  memory: boolean;
+  memoryPercent: number;
+  disk: boolean;
+  diskFreePercent: number;
+  cooldownMinutes: number;
+}
+
+/** A named snapshot of the layout: modules, clock look, appearance and window placement. */
+export interface Profile {
+  id: string;
+  name: string;
+  builtin: boolean;
+  modules: ModuleSettings;
+  clock: ClockSettings;
+  appearance: AppearanceSettings;
+  window: WindowSettings;
+}
+
+export interface AutoSwitch {
+  enabled: boolean;
+  singleDisplay: string | null;
+  multiDisplay: string | null;
+}
+
+export interface ProfileSettings {
+  active: string;
+  items: Profile[];
+  autoSwitch: AutoSwitch;
 }
 
 export interface Settings {
@@ -163,6 +202,8 @@ export interface Settings {
   window: WindowSettings;
   shortcuts: ShortcutSettings;
   notifications: NotificationSettings;
+  alerts: AlertSettings;
+  profiles: ProfileSettings;
 }
 
 // ---------------------------------------------------------------- clock
@@ -205,11 +246,18 @@ export interface DiskInfo {
   mount: string;
   usedBytes: number;
   totalBytes: number;
+  /** null until two samples exist, or when Windows reports no activity counters. */
+  readBytesPerSec: number | null;
+  writeBytesPerSec: number | null;
 }
+
+/** `unsupported`: this PC cannot provide the metric. `error`: a reading failed and will be retried. */
+export type LimitKind = 'unsupported' | 'error';
 
 export interface Limitation {
   metric: string;
   reason: string;
+  kind: LimitKind;
 }
 
 export interface ProcessInfo {
@@ -228,13 +276,18 @@ export interface SystemSnapshot {
     perCore: number[];
     temperatureC: number | null;
   };
-  memory: { usedBytes: number; totalBytes: number };
+  memory: { usedBytes: number; totalBytes: number; availableBytes: number };
   disks: DiskInfo[];
   network: { rxBytesPerSec: number | null; txBytesPerSec: number | null };
+  diskIo: { readBytesPerSec: number | null; writeBytesPerSec: number | null };
   gpu: {
     name: string | null;
     usage: number | null;
     temperatureC: number | null;
+    memoryUsedBytes: number | null;
+    memoryTotalBytes: number | null;
+    /** True for integrated GPUs that use shared system memory. */
+    memoryShared: boolean;
     source: string | null;
   };
   uptimeSecs: number;
@@ -242,6 +295,8 @@ export interface SystemSnapshot {
   cpuHistory: number[];
   rxHistory: number[];
   txHistory: number[];
+  /** Combined disk read + write bytes/s. */
+  diskHistory: number[];
   topProcesses: ProcessInfo[];
   limitations: Limitation[];
 }
@@ -321,7 +376,11 @@ export interface Bootstrap {
 }
 
 export interface DisplayInfo {
+  /** Device name such as DISPLAY2; can change when monitors are re-plugged. */
   id: string;
+  /** Stable monitor id, or null when Windows does not report one. */
+  stableId: string | null;
+  name: string | null;
   label: string;
   width: number;
   height: number;

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-rename-profile"
+description = "Enables the rename_profile command without any pre-configured scope."
+commands.allow = ["rename_profile"]
+
+[[permission]]
+identifier = "deny-rename-profile"
+description = "Denies the rename_profile command without any pre-configured scope."
+commands.deny = ["rename_profile"]

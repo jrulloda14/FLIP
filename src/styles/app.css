@@ -866,3 +866,47 @@ body,
   color: var(--bg);
   border-color: var(--bg-invert);
 }
+
+/* ---------- settings: profiles ---------- */
+.fl-prof {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--u) * 10px) calc(var(--u) * 18px);
+  padding: calc(var(--u) * 12px) calc(var(--u) * 28px);
+  border-bottom: 1px solid var(--rule);
+  border-left: 2px solid transparent;
+}
+.fl-prof.is-on {
+  border-left-color: var(--ink-0);
+}
+.fl-prof__main {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 4px);
+  min-width: 0;
+}
+.fl-prof__name {
+  font-size: calc(var(--u) * 16px);
+  letter-spacing: 0.08em;
+}
+.fl-prof__badge {
+  display: inline-block;
+  margin-left: calc(var(--u) * 10px);
+  padding: 0 calc(var(--u) * 6px);
+  border: 1px solid var(--ink-1);
+  font-size: calc(var(--u) * 11px);
+  letter-spacing: 0.14em;
+  vertical-align: middle;
+  line-height: 1.6;
+}
+.fl-prof__badge--dim {
+  border-color: var(--ink-3);
+  color: var(--ink-3);
+}
+.fl-prof__act {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--u) * 8px);
+}
