@@ -1,5 +1,11 @@
 # FLIP
 
+![FLIP dashboard: dot-matrix clock, AI usage rows, world-clock board and system monitor](docs/screenshots/dashboard.png)
+
+<sub>Shown with sample data. FLIP displays your own clock, cities and system readings, and only shows AI usage from a source you connect.</sub>
+
+**[Download for Windows](https://github.com/jrulloda14/FLIP/releases/latest)** · free and open source (MIT)
+
 A desktop-embedded airport-board dashboard for Windows. It shows a dot-matrix clock, AI subscription usage, world clocks, a Pomodoro timer and a live system monitor on one continuous black display.
 
 FLIP is not a normal app window. It has no title bar or border in any mode, no taskbar button and no Alt+Tab entry, and by default it sits **on the desktop layer**: under your applications, above the wallpaper, and still visible when you press Win+D. It works as a full-screen ambient board on a second monitor, or as a region of your main monitor that coexists with your apps.
@@ -17,6 +23,12 @@ Windows SmartScreen may warn on first run because the installer is not code-sign
 ```powershell
 Get-FileHash .\FLIP_0.1.0_x64-setup.exe -Algorithm SHA256
 ```
+
+## Screenshots
+
+| Focus session running | Settings › Display |
+|---|---|
+| ![Focus session: the Pomodoro countdown leads the left panel in dot-matrix digits](docs/screenshots/focus.png) | ![Settings panel, Display tab: display, mode, region, layer, board colour and opacity](docs/screenshots/settings.png) |
 
 ## Privacy
 

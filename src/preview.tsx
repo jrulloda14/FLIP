@@ -18,7 +18,8 @@ if (q.get('preset')) b.settings.modules.preset = q.get('preset') as Settings['mo
 if (q.get('mode')) b.settings.window.mode = q.get('mode') as Settings['window']['mode'];
 if (q.get('bg')) b.settings.appearance.backgroundOpacity = Number(q.get('bg'));
 if (q.has('focus')) b.pomodoro = pomodoro({ phase: 'focus', running: true, session: 2, remainingMs: 18 * 60_000 + 42_000, endsAt: new Date(Date.now() + 1122_000).toISOString() });
-if (q.has('ai')) b.ai = [okClaude(), { ...unavailable('codex', 'CODEX'), status: 'error', error: { code: 'FORMAT', message: 'unexpected log line', retryAt: null } }];
+if (q.get('ai') === 'sample') b.ai = [okClaude(), unavailable('codex', 'CODEX')];
+else if (q.has('ai')) b.ai = [okClaude(), { ...unavailable('codex', 'CODEX'), status: 'error', error: { code: 'FORMAT', message: 'unexpected log line', retryAt: null } }];
 b.settings.cities = [
   { name: 'MANILA', code: 'MNL', tz: 'Asia/Manila' },
   ...b.settings.cities,

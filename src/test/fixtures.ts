@@ -90,7 +90,7 @@ export const bootstrap = (over: Partial<Bootstrap> = {}): Bootstrap => ({
   system: system(),
   pomodoro: pomodoro(),
   ai: [unavailable('claude', 'CLAUDE'), unavailable('codex', 'CODEX')],
-  platform: { isDebug: false, appVersion: '0.1.0', dataDir: 'C:\\Users\\t\\AppData\\Roaming\\com.flip.dashboard', claudeStatuslineCommand: '"C:\\flip.exe" --claude-statusline' },
+  platform: { isDebug: false, appVersion: '0.1.0', dataDir: '%APPDATA%\\com.flip.dashboard', claudeStatuslineCommand: '"C:\\flip.exe" --claude-statusline' },
   timeZones: ['Asia/Singapore', 'Europe/London', 'Asia/Tokyo', 'Europe/Paris', 'UTC'],
   systemTimeZone: 'Asia/Singapore',
   status: {
