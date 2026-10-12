@@ -16,7 +16,7 @@ Everything runs locally. FLIP has no account, no telemetry and makes no network 
 
 ## Contents
 
-[Key features](#key-features) · [Screenshots](#screenshots) · [Download and installation](#download-and-installation) · [First-run guide](#first-run-guide) · [Desktop embedding and display modes](#desktop-embedding-and-display-modes) · [Clock Studio](#clock-studio-and-clock-templates) · [Profiles](#multi-monitor-profiles) · [System monitoring](#windows-system-monitoring) · [AI usage](#ai-usage-integrations) · [Shortcuts and tray](#keyboard-shortcuts-and-tray-controls) · [Privacy and security](#privacy-and-security) · [Limitations](#known-limitations) · [Build from source](#build-from-source) · [Architecture](#architecture-overview) · [Roadmap](#roadmap) · [Contributing](#contributing) · [License](#license)
+[Key features](#key-features) · [Screenshots](#screenshots) · [Download and installation](#download-and-installation) · [First-run guide](#first-run-guide) · [Desktop embedding and display modes](#desktop-embedding-and-display-modes) · [Clock Studio](#clock-studio-and-clock-templates) · [Profiles](#multi-monitor-profiles) · [System monitoring](#windows-system-monitoring) · [AI usage](#ai-usage-integrations) · [Shortcuts and tray](#keyboard-shortcuts-and-tray-controls) · [Privacy and security](#privacy-and-security) · [Limitations](#known-limitations) · [Build from source](#build-from-source) · [Architecture](#architecture-overview) · [Roadmap](#roadmap) · [Contributing](#contributing) · [Acknowledgments](#acknowledgments--inspiration) · [License](#license)
 
 ## Key features
 
@@ -363,6 +363,14 @@ Issues and pull requests are welcome.
 - Settings changes need a migration and a test that an older settings file still loads.
 
 See [CHANGELOG.md](CHANGELOG.md) for what changed in each version and [docs/HANDOFF.md](docs/HANDOFF.md) for the original design handoff.
+
+## Acknowledgments & Inspiration
+
+FLIP was inspired in part by [Aero for macOS](https://github.com/bryllim/aero), which showed the appeal of an ambient desktop dashboard.
+
+FLIP brings that idea to Windows with its own implementation, focused on Windows desktop integration, system monitoring, multi-monitor layouts and developer workflows.
+
+FLIP is an independent project and is not affiliated with or endorsed by Aero or its author.
 
 ## License
 
