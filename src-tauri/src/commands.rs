@@ -133,6 +133,8 @@ pub fn store_settings(app: &AppHandle, state: &AppState, mut next: Settings) -> 
         // Saved rectangles are owned by the backend; the webview may hold an older copy.
         next.window.windowed_rect = cur.window.windowed_rect.clone();
         next.window.compact_rect = cur.window.compact_rect.clone();
+        next.window.windowed_region = cur.window.windowed_region;
+        next.window.compact_region = cur.window.compact_region;
         std::mem::replace(&mut *cur, next.clone())
     };
     settings::save(&state.paths.settings(), &next)?;

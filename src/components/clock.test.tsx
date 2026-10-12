@@ -66,8 +66,8 @@ describe('clock helpers', () => {
 
   it('falls back to the dot-matrix template for unknown ids', () => {
     expect(safeTemplate('splitFlap')).toBe('splitFlap');
-    expect(safeTemplate('hologram')).toBe('dotMatrix');
-    expect(safeTemplate(undefined)).toBe('dotMatrix');
+    expect(safeTemplate('hologram')).toBe('splitFlap');
+    expect(safeTemplate(undefined)).toBe('splitFlap');
   });
 
   it('caps the clock size on small layouts so digits never clip', () => {
@@ -196,9 +196,9 @@ describe('DigitalClock', () => {
     }
   });
 
-  it('keeps the existing dot-matrix clock for an unknown template', () => {
+  it('falls back to the default split-flap clock for an unknown template', () => {
     const { container } = render(<DigitalClock {...props({ template: 'hologram' as ClockTemplate })} />);
-    expect(container.querySelector('svg.fl-matrix')).toBeInTheDocument();
+    expect(container.querySelector('.fl-clockface--splitFlap')).toBeInTheDocument();
   });
 
   it('formats 12-hour time with a fixed-width hour and AM/PM', () => {

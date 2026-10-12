@@ -134,6 +134,9 @@ export interface WindowSettings {
   hideControlsAfter: number;
   windowedRect: Placement | null;
   compactRect: Placement | null;
+  /** Region preset each movable mode currently fills; null after a manual move/resize. */
+  windowedRegion: Region | null;
+  compactRegion: Region | null;
 }
 
 export interface ShortcutSettings {

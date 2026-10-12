@@ -16,7 +16,6 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt as _};
 
 use crate::paths::AppPaths;
 use crate::services::ai_usage::UsageCache;
-use crate::services::settings::DisplayMode;
 use crate::services::{desktop_layer, pomodoro, settings, shortcuts, tray, window};
 use crate::state::{lock, AiState, AppState};
 
@@ -43,12 +42,11 @@ pub fn run() {
         .setup(move |app| {
             let dir = app.path().app_config_dir()?;
             let paths = AppPaths::new(dir);
-            let first_run = !paths.settings().exists();
             let loaded = settings::load(&paths.settings(), allow_demo);
             let timer = pomodoro::load(&paths.pomodoro(), &loaded.settings.focus);
             let cache = UsageCache::load(&paths.ai_cache());
             let (shutdown, _) = tokio::sync::watch::channel(false);
-            let mut s = loaded.settings.clone();
+            let s = loaded.settings.clone();
             app.manage(AppState {
                 paths,
                 allow_demo,
@@ -84,17 +82,6 @@ pub fn run() {
                 // No taskbar button, no Alt+Tab entry, and the desktop-layer hooks. Must run
                 // before the first show; setup runs on the UI thread.
                 desktop_layer::install(&w, true);
-                if first_run {
-                    // A second monitor becomes an ambient board; otherwise share the main one.
-                    let displays = window::list_displays(&w);
-                    if let Some(second) = displays.iter().find(|d| !d.primary) {
-                        let state = app.state::<AppState>();
-                        let mut cur = state.settings_mut();
-                        cur.window.mode = DisplayMode::Ambient;
-                        cur.window.display = Some(second.id.clone());
-                        s = cur.clone();
-                    }
-                }
                 let state = app.state::<AppState>();
                 commands::apply_window(app.handle(), &state, &s.window);
                 if !s.window.start_hidden {

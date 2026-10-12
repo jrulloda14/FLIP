@@ -11,9 +11,9 @@ export const settings = (): Settings => ({
   ],
   ai: { refreshMinutes: 2, warnAt: 0.9, claude: { source: 'off' }, codex: { source: 'off', codexHome: null }, manual: {}, demo: false },
   focus: { focusMinutes: 25, shortMinutes: 5, longMinutes: 15, sessions: 4, autoStart: false },
-  modules: { date: true, ai: true, world: true, system: true, focus: true, keys: true, layout: 'auto', preset: 'balanced', order: ['ai', 'world', 'system', 'focus'] },
+  modules: { date: true, ai: true, world: true, system: true, focus: true, keys: true, layout: 'full', preset: 'balanced', order: ['ai', 'world', 'system', 'focus'] },
   system: { temps: true, gpu: true, net: true, disk: true, plot: true, sampleSeconds: 1, tempUnit: 'C' },
-  window: { mode: 'windowed', layer: 'desktop', display: null, launchOnStartup: false, startHidden: false, closeToTray: true, hideControlsAfter: 3, windowedRect: null, compactRect: null },
+  window: { mode: 'windowed', layer: 'desktop', display: null, launchOnStartup: false, startHidden: false, closeToTray: true, hideControlsAfter: 3, windowedRect: null, compactRect: null, windowedRegion: 'rightHalf', compactRegion: 'topRight' },
   shortcuts: { toggle: 'Ctrl+Alt+F', settings: 'Ctrl+Alt+S', layout: 'Ctrl+Alt+L', focus: 'Ctrl+Alt+P' },
   notifications: { focusComplete: true, breakComplete: true },
 });

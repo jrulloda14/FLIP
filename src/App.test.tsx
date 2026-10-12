@@ -37,7 +37,10 @@ beforeEach(() => {
         return pomodoro({ phase: 'focus', running: true, remainingMs: 25 * 60_000 });
       case 'refresh_ai':
         return [okClaude()];
-      case 'apply_region':
+      case 'apply_region': {
+        const b = bootstrap().settings;
+        return { ...b, window: { ...b.window, mode: 'windowed', windowedRegion: args!.region } };
+      }
       case 'reset_layout':
       case 'restore_default_settings':
         return bootstrap().settings;
@@ -154,7 +157,8 @@ describe('dashboard window', () => {
   });
 
   it('compact mode never renders the full layout', () => {
-    const s = bootstrap().settings;
+    const b0 = bootstrap().settings;
+    const s = { ...b0, modules: { ...b0.modules, layout: 'auto' as const } };
     expect(layoutFor(1920, 1080, s)).toBe('full');
     expect(layoutFor(1920, 1080, { ...s, window: { ...s.window, mode: 'compact' } })).toBe('compact');
     expect(layoutFor(500, 240, { ...s, window: { ...s.window, mode: 'compact' } })).toBe('mini');
@@ -167,7 +171,8 @@ describe('density and presets (fix: ignored in compact mode)', () => {
     const compactMode = { ...s, window: { ...s.window, mode: 'compact' as const } };
     expect(layoutFor(1080, 608, { ...compactMode, modules: { ...s.modules, layout: 'full' } })).toBe('full');
     expect(layoutFor(1920, 1080, { ...s, modules: { ...s.modules, layout: 'compact' } })).toBe('compact');
-    expect(layoutFor(924, 992, s)).toBe('compact'); // windowed half-screen, AUTO
+    expect(layoutFor(924, 992, { ...s, modules: { ...s.modules, layout: 'auto' } })).toBe('compact'); // windowed half-screen, AUTO
+    expect(layoutFor(924, 992, s)).toBe('full'); // new default density: FULL
   });
 
   it('presets apply to the compact layout too', () => {
@@ -180,6 +185,7 @@ describe('density and presets (fix: ignored in compact mode)', () => {
   it('renders the chosen preset in compact mode and marks a translucent board', async () => {
     const b = bootstrap();
     b.settings.window.mode = 'compact';
+    b.settings.modules.layout = 'auto';
     b.settings.modules.preset = 'clock';
     b.settings.appearance.backgroundOpacity = 0.4;
     invoke.mockImplementation(async (cmd: string) => (cmd === 'get_bootstrap' ? b : undefined));
@@ -225,12 +231,17 @@ describe('panel window', () => {
   it('chooses display, mode, region and layer', async () => {
     render(<App surface="panel" />);
     await screen.findByRole('dialog', { name: 'Settings' });
+    expect(screen.getByRole('radio', { name: 'RIGHT HALF' })).toHaveAttribute('aria-checked', 'true'); // default region
+    expect(screen.getByRole('radio', { name: 'RIGHT HALF' })).toHaveClass('is-on');
     await userEvent.selectOptions(screen.getByLabelText('Display'), 'DISPLAY2');
     expect(lastSettings().window.display).toBe('DISPLAY2');
     await userEvent.click(screen.getByRole('radio', { name: 'AMBIENT' }));
     expect(lastSettings().window.mode).toBe('ambient');
-    await userEvent.click(screen.getByRole('button', { name: 'TOP RIGHT' }));
+    expect(screen.getByRole('radio', { name: 'RIGHT HALF' })).toHaveAttribute('aria-checked', 'false'); // ambient fills the display
+    await userEvent.click(screen.getByRole('radio', { name: 'TOP RIGHT' }));
     expect(invoke).toHaveBeenCalledWith('apply_region', { region: 'topRight' });
+    expect(await screen.findByRole('radio', { name: 'TOP RIGHT' })).toHaveClass('is-on');
+    expect(screen.getByRole('radio', { name: 'RIGHT HALF' })).toHaveAttribute('aria-checked', 'false');
     await userEvent.click(screen.getByRole('radio', { name: 'ALWAYS ON TOP' }));
     expect(lastSettings().window.layer).toBe('top');
     await userEvent.click(screen.getByRole('radio', { name: '60%' }));
@@ -238,6 +249,16 @@ describe('panel window', () => {
     expect(screen.getByText('Matches your desktop colour #000000')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('radio', { name: 'BOARD #050505' }));
     expect(lastSettings().appearance.background).toBe('board');
+  });
+
+  it('shows no region selected after a manual move', async () => {
+    const b = bootstrap();
+    b.settings.window.windowedRegion = null;
+    invoke.mockImplementation(async (cmd: string) => (cmd === 'get_bootstrap' ? b : undefined));
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'Settings' });
+    expect(within(screen.getByRole('radiogroup', { name: 'Region' })).getAllByRole('radio').every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true);
+    expect(screen.getByText(/Custom position/)).toBeInTheDocument();
   });
 
   it('flags a display that is no longer connected', async () => {

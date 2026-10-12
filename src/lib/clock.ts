@@ -4,8 +4,8 @@ import { useSyncExternalStore } from 'react';
 import type { ClockInk, ClockTemplate, Layout } from './types';
 
 export const TEMPLATES: { id: ClockTemplate; label: string; hint: string }[] = [
+  { id: 'splitFlap', label: 'SPLIT FLAP', hint: 'Mechanical airport flaps; only changing digits flip (default)' },
   { id: 'dotMatrix', label: 'DOT MATRIX', hint: 'The FLIP board: 5×7 LED dots' },
-  { id: 'splitFlap', label: 'SPLIT FLAP', hint: 'Mechanical airport flaps; only changing digits flip' },
   { id: 'sevenSegment', label: 'SEVEN SEGMENT', hint: 'Digital LED segments' },
   { id: 'terminal', label: 'TERMINAL', hint: 'Monospaced console text' },
   { id: 'minimal', label: 'MINIMAL', hint: 'Large, clean numerals' },
@@ -13,9 +13,11 @@ export const TEMPLATES: { id: ClockTemplate; label: string; hint: string }[] = [
 
 const KNOWN = new Set<ClockTemplate>(TEMPLATES.map((t) => t.id));
 
-/** Unknown or missing template ids fall back to the original dot-matrix clock. */
+export const DEFAULT_TEMPLATE: ClockTemplate = 'splitFlap';
+
+/** Unknown or missing template ids fall back to the default split-flap clock. */
 export function safeTemplate(t: string | null | undefined): ClockTemplate {
-  return t && KNOWN.has(t as ClockTemplate) ? (t as ClockTemplate) : 'dotMatrix';
+  return t && KNOWN.has(t as ClockTemplate) ? (t as ClockTemplate) : DEFAULT_TEMPLATE;
 }
 
 /**

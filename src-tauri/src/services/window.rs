@@ -4,12 +4,14 @@
 
 use std::sync::atomic::Ordering;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::{
-    AppHandle, LogicalSize, Manager, Monitor, PhysicalPosition, PhysicalSize, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    AppHandle, Emitter, LogicalSize, Manager, Monitor, PhysicalPosition, PhysicalSize, Runtime, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
 };
 
 use super::desktop_layer;
+pub use super::settings::Region;
 use super::settings::{DisplayMode, Placement, WindowSettings};
 use crate::state::AppState;
 
@@ -46,19 +48,6 @@ pub fn placement_visible(p: &Placement, monitors: &[Rect]) -> bool {
         let (w, h) = r.overlap(m);
         w >= MIN_VISIBLE.min(r.w) && h >= MIN_VISIBLE.min(r.h)
     })
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Region {
-    Full,
-    LeftHalf,
-    RightHalf,
-    TopLeft,
-    TopRight,
-    BottomLeft,
-    BottomRight,
-    Center,
 }
 
 /// Rectangle for a region preset inside a work area. `margin` is in physical pixels.
@@ -191,7 +180,7 @@ pub fn place<R: Runtime>(w: &WebviewWindow<R>, s: &WindowSettings) -> Option<Str
     // A saved rectangle is reused only if it is on the display we are placing on.
     let rect = match saved {
         Some(p) if !fell_back && placement_visible(p, std::slice::from_ref(&mon.work)) => Rect::from_placement(p),
-        _ => region_rect(&mon.work, default_region(s.mode), margin),
+        _ => region_rect(&mon.work, s.region().unwrap_or_else(|| default_region(s.mode)), margin),
     };
     let movable = s.mode != DisplayMode::Ambient;
     let _ = w.set_resizable(movable);
@@ -212,8 +201,30 @@ pub fn apply_region<R: Runtime>(w: &WebviewWindow<R>, state: &AppState, region: 
     let Some((idx, _)) = choose_display(&ids, s.display.as_deref()) else { return };
     let mon = &mons[idx];
     let r = region_rect(&mon.work, region, (REGION_MARGIN * mon.scale) as i64);
+    {
+        let mut st = state.settings_mut();
+        match st.window.mode {
+            DisplayMode::Compact => st.window.compact_region = Some(region),
+            _ => st.window.windowed_region = Some(region),
+        }
+    }
     set_rect(w, r);
     capture_placement(w, state);
+}
+
+/// True when two rectangles are the same within a few pixels (DPI rounding).
+fn same_rect(a: &Rect, b: &Rect) -> bool {
+    (a.x - b.x).abs() <= 4 && (a.y - b.y).abs() <= 4 && (a.w - b.w).abs() <= 4 && (a.h - b.h).abs() <= 4
+}
+
+/// Whether the window still fills its recorded region on the current display.
+fn still_in_region<R: Runtime>(w: &WebviewWindow<R>, s: &WindowSettings, current: &Rect) -> bool {
+    let Some(region) = s.region() else { return false };
+    let mons = monitors(w);
+    let ids: Vec<(String, bool)> = mons.iter().map(|m| (m.id.clone(), m.primary)).collect();
+    let Some((idx, _)) = choose_display(&ids, s.display.as_deref()) else { return false };
+    let mon = &mons[idx];
+    same_rect(current, &region_rect(&mon.work, region, (REGION_MARGIN * mon.scale) as i64))
 }
 
 /// Records the current geometry for the current movable mode.
@@ -228,11 +239,30 @@ pub fn capture_placement<R: Runtime>(w: &WebviewWindow<R>, state: &AppState) {
     }
     let monitor = w.current_monitor().ok().flatten().and_then(|m| m.name().cloned());
     let p = Placement { x: pos.x, y: pos.y, width: size.width, height: size.height, monitor };
-    let mut s = state.settings_mut();
-    let slot = if mode == DisplayMode::Compact { &mut s.window.compact_rect } else { &mut s.window.windowed_rect };
-    if slot.as_ref() != Some(&p) {
-        *slot = Some(p);
-        state.placement_dirty.store(true, Ordering::SeqCst);
+    let win = state.settings().window.clone();
+    let in_region = still_in_region(w, &win, &Rect::from_placement(&p));
+    let region_cleared = {
+        let mut s = state.settings_mut();
+        let win = &mut s.window;
+        let (slot, region) = if mode == DisplayMode::Compact {
+            (&mut win.compact_rect, &mut win.compact_region)
+        } else {
+            (&mut win.windowed_rect, &mut win.windowed_region)
+        };
+        if slot.as_ref() != Some(&p) {
+            *slot = Some(p);
+            state.placement_dirty.store(true, Ordering::SeqCst);
+        }
+        // Moved or resized by hand: no preset region is selected any more.
+        let cleared = !in_region && region.is_some();
+        if cleared {
+            *region = None;
+        }
+        cleared
+    };
+    if region_cleared {
+        let s = state.settings().clone();
+        let _ = w.app_handle().emit(crate::commands::EVT_SETTINGS, &s);
     }
 }
 

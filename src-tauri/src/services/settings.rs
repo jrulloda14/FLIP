@@ -16,7 +16,7 @@ use serde_json::Value;
 
 use crate::paths::atomic_write;
 
-pub const SETTINGS_VERSION: u32 = 3;
+pub const SETTINGS_VERSION: u32 = 4;
 pub const MAX_CITIES: usize = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -51,8 +51,9 @@ where
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum ClockTemplate {
-    #[default]
     DotMatrix,
+    /// The default: FLIP is named after the split-flap board.
+    #[default]
     SplitFlap,
     SevenSegment,
     Terminal,
@@ -127,7 +128,7 @@ impl Default for ClockSettings {
             dot_shape: DotShape::Round,
             ghost_dots: true,
             home_time_zone: None,
-            template: ClockTemplate::DotMatrix,
+            template: ClockTemplate::SplitFlap,
             animate: true,
             animation_ms: ANIMATION_MS_DEFAULT,
             scale: 1.0,
@@ -373,7 +374,7 @@ impl Default for ModuleSettings {
             system: true,
             focus: true,
             keys: true,
-            layout: LayoutPref::Auto,
+            layout: LayoutPref::Full,
             preset: LayoutPreset::Balanced,
             order: DEFAULT_ORDER.to_vec(),
         }
@@ -418,6 +419,20 @@ pub enum DisplayMode {
     Compact,
 }
 
+/// Screen region presets for the movable modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Region {
+    Full,
+    LeftHalf,
+    RightHalf,
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+    Center,
+}
+
 /// Where the dashboard sits in the window stack.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -458,6 +473,22 @@ pub struct WindowSettings {
     /// Saved rectangles, one per movable mode (physical pixels).
     pub windowed_rect: Option<Placement>,
     pub compact_rect: Option<Placement>,
+    /// Region preset currently filled in each movable mode; `None` after a manual move/resize.
+    #[serde(deserialize_with = "lenient")]
+    pub windowed_region: Option<Region>,
+    #[serde(deserialize_with = "lenient")]
+    pub compact_region: Option<Region>,
+}
+
+impl WindowSettings {
+    /// The region recorded for the current mode (ambient always fills the display).
+    pub fn region(&self) -> Option<Region> {
+        match self.mode {
+            DisplayMode::Ambient => Some(Region::Full),
+            DisplayMode::Windowed => self.windowed_region,
+            DisplayMode::Compact => self.compact_region,
+        }
+    }
 }
 
 impl Default for WindowSettings {
@@ -472,6 +503,8 @@ impl Default for WindowSettings {
             hide_controls_after: 3,
             windowed_rect: None,
             compact_rect: None,
+            windowed_region: Some(Region::RightHalf),
+            compact_region: Some(Region::TopRight),
         }
     }
 }
@@ -809,6 +842,17 @@ pub fn migrate(mut v: Value) -> Value {
             obj.insert("version".into(), Value::from(2));
         }
     }
+    if version < 4 {
+        // v4 records the region preset per mode. Installs that already saved a hand-placed
+        // rectangle get no region (nothing is highlighted), instead of a wrong one.
+        if let Some(win) = v.get_mut("window").and_then(Value::as_object_mut) {
+            for (rect, region) in [("windowedRect", "windowedRegion"), ("compactRect", "compactRegion")] {
+                if win.get(rect).is_some_and(|r| !r.is_null()) && !win.contains_key(region) {
+                    win.insert(region.into(), Value::Null);
+                }
+            }
+        }
+    }
     if version < 3 {
         // v3 adds Clock Studio. Existing installs keep the dot-matrix clock they already had,
         // even if a future default changes.
@@ -819,6 +863,9 @@ pub fn migrate(mut v: Value) -> Value {
             }
             obj.insert("version".into(), Value::from(3));
         }
+    }
+    if let Some(obj) = v.as_object_mut() {
+        obj.insert("version".into(), Value::from(SETTINGS_VERSION));
     }
     v
 }
@@ -955,7 +1002,7 @@ mod tests {
             "ai": { "refreshMinutes": 5, "providers": [ { "id": "claude" } ] }
         });
         let s: Settings = serde_json::from_value(migrate(v0)).unwrap();
-        assert_eq!(s.version, 3);
+        assert_eq!(s.version, 4);
         assert_eq!(s.focus.focus_minutes, 50);
         assert_eq!(s.focus.short_minutes, 10);
         assert_eq!(s.focus.long_minutes, 20);
@@ -1021,7 +1068,7 @@ mod tests {
             "appearance": { "font": "cascadia" }
         });
         let s: Settings = serde_json::from_value(migrate(v1)).unwrap();
-        assert_eq!(s.version, 3);
+        assert_eq!(s.version, 4);
         assert_eq!(s.window.mode, DisplayMode::Windowed);
         assert_eq!(s.window.layer, WindowLayer::Desktop);
         assert!(s.window.start_hidden);
@@ -1071,7 +1118,7 @@ mod tests {
             "modules": { "preset": "clock" }
         });
         let s: Settings = serde_json::from_value(migrate(v2)).unwrap();
-        assert_eq!(s.version, 3);
+        assert_eq!(s.version, 4);
         assert_eq!(s.clock.template, ClockTemplate::DotMatrix);
         assert!(!s.clock.h24 && s.clock.seconds && !s.clock.ghost_dots);
         assert_eq!(s.clock.dot_shape, DotShape::Square);
@@ -1094,7 +1141,7 @@ mod tests {
         });
         let mut s: Settings = serde_json::from_value(raw).unwrap();
         s.validate(false);
-        assert_eq!(s.clock.template, ClockTemplate::DotMatrix);
+        assert_eq!(s.clock.template, ClockTemplate::SplitFlap, "unknown template falls back to the default");
         assert_eq!(s.clock.ink, ClockInk::Bright);
         assert_eq!(s.clock.flap_panel, FlapPanel::Graphite);
         assert_eq!(s.clock.animation_ms, ANIMATION_MS_DEFAULT);
@@ -1132,7 +1179,33 @@ mod tests {
         assert!(!l.settings.clock.flap_seam);
         assert!(l.notice.is_none());
         let d = Settings::default();
-        assert_eq!(d.clock.template, ClockTemplate::DotMatrix);
+        assert_eq!(d.clock.template, ClockTemplate::SplitFlap, "new installs default to split flap");
         assert!(d.clock.animate && d.clock.flap_seam && d.clock.flap_shadow);
+    }
+
+    #[test]
+    fn new_install_defaults() {
+        let s = Settings::default();
+        assert_eq!(s.window.layer, WindowLayer::Desktop);
+        assert_eq!(s.window.mode, DisplayMode::Windowed);
+        assert_eq!(s.window.windowed_region, Some(Region::RightHalf));
+        assert_eq!(s.window.region(), Some(Region::RightHalf));
+        assert_eq!(s.modules.preset, LayoutPreset::Balanced);
+        assert_eq!(s.modules.layout, LayoutPref::Full);
+    }
+
+    #[test]
+    fn migrates_v3_regions() {
+        // A hand-placed window keeps no region; an untouched one keeps the default.
+        let placed = json!({ "version": 3, "window": { "windowedRect": { "x": 5, "y": 5, "width": 900, "height": 700, "monitor": null } },
+                             "modules": { "layout": "auto" } });
+        let s: Settings = serde_json::from_value(migrate(placed)).unwrap();
+        assert_eq!(s.version, 4);
+        assert_eq!(s.window.windowed_region, None);
+        assert_eq!(s.modules.layout, LayoutPref::Auto, "existing density choice is kept");
+        let fresh: Settings = serde_json::from_value(migrate(json!({ "version": 3, "window": {} }))).unwrap();
+        assert_eq!(fresh.window.windowed_region, Some(Region::RightHalf));
+        let bad: Settings = serde_json::from_value(json!({ "version": 4, "window": { "windowedRegion": "sideways" } })).unwrap();
+        assert_eq!(bad.window.windowed_region, None, "unknown region falls back to none, not an error");
     }
 }

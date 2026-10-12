@@ -608,6 +608,7 @@ export function DisplayTab({ s, set, status }: { s: Settings; set: Upd; status: 
   const put = (patch: Partial<Settings['window']>) => set((x) => ({ ...x, window: { ...x.window, ...patch } }));
   const displays = status?.displays ?? [];
   const missing = w.display !== null && !displays.some((d) => d.id === w.display);
+  const currentRegion = w.mode === 'compact' ? w.compactRegion : w.mode === 'windowed' ? w.windowedRegion : null;
   return (
     <>
       <Head>PLACEMENT</Head>
@@ -634,10 +635,22 @@ export function DisplayTab({ s, set, status }: { s: Settings; set: Upd; status: 
           label="Display mode"
         />
       </Row>
-      <Row label="REGION" hint={w.mode === 'ambient' ? 'Choosing a region switches to WINDOWED' : 'Or drag the top strip and resize from the edges'}>
-        <div className="fl-regions">
+      <Row label="REGION" hint={
+          w.mode === 'ambient'
+            ? 'Choosing a region switches to WINDOWED'
+            : currentRegion
+              ? 'Or drag the top strip and resize from the edges'
+              : 'Custom position (moved or resized by hand). Pick a region to snap back'
+        }>
+        <div className="fl-regions" role="radiogroup" aria-label="Region">
           {REGIONS.map(([r, label]) => (
-            <button key={r} className="fl-btn" onClick={() => void actions.applyRegion(r)}>
+            <button
+              key={r}
+              role="radio"
+              aria-checked={currentRegion === r}
+              className={`fl-btn${currentRegion === r ? ' is-on' : ''}`}
+              onClick={() => void actions.applyRegion(r)}
+            >
               {label}
             </button>
           ))}

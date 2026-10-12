@@ -16,12 +16,19 @@ Built with **Tauri 2** (Rust backend, WebView2), **React 19 + TypeScript** and *
 
 ## Download
 
-Grab `FLIP_<version>_x64-setup.exe` from the [Releases](../../releases) page and run it. It installs for the current user only, with no admin rights, and includes an uninstaller. Windows 10 and 11, x64.
+Get FLIP from the [Releases](../../releases/latest) page. There are two installers; both install for the current user only (no admin rights) and include an uninstaller. Windows 10 and 11, x64.
 
-Windows SmartScreen may warn on first run because the installer is not code-signed. Choose **More info › Run anyway**, or build from source (below). Each release lists the installer's SHA-256 so you can check what you downloaded:
+| Installer | Size | Use it when |
+|---|---|---|
+| `FLIP_<version>_x64-setup.exe` | ~2 MB | Almost always. It downloads Microsoft's WebView2 runtime only if your PC lacks it (Windows 11 and up-to-date Windows 10 already have it). |
+| `FLIP_<version>_x64-offline-setup.exe` | ~210 MB | The PC has no internet, or WebView2 is missing and can't be downloaded. Includes Microsoft's WebView2 installer. |
+
+Nothing else is needed: no Node.js, Rust or Visual C++ redistributable.
+
+Windows SmartScreen may warn on first run because the installers are not code-signed. Choose **More info › Run anyway**, or build from source (below). Each release lists SHA-256 checksums so you can check what you downloaded:
 
 ```powershell
-Get-FileHash .\FLIP_0.1.0_x64-setup.exe -Algorithm SHA256
+Get-FileHash .\FLIP_0.2.0_x64-setup.exe -Algorithm SHA256
 ```
 
 ## Screenshots
@@ -58,8 +65,8 @@ Settings › Clock lets you restyle the main clock. Every template shows real ti
 
 | Template | Look |
 |---|---|
-| **Dot Matrix** | The original FLIP 5×7 LED dots, round or square, with optional unlit "ghost" dots. It stays the default, and existing installs keep it. |
-| **Split Flap** | Mechanical airport-board cards. When a digit changes, its upper half falls on a hinge and the new lower half swings down. Only changed digits flip, so 12:59 → 13:00 flips three cards and leaves the first. Optional panel seam, shadow, and graphite or black cards. |
+| **Dot Matrix** | The original FLIP 5×7 LED dots, round or square, with optional unlit "ghost" dots. Installs from before Clock Studio keep it. |
+| **Split Flap** (default) | Mechanical airport-board cards. When a digit changes, its upper half falls on a hinge and the new lower half swings down. Only changed digits flip, so 12:59 → 13:00 flips three cards and leaves the first. Optional panel seam, shadow, and graphite or black cards. |
 | **Seven Segment** | Slanted LED segments, with optional faint unlit segments. |
 | **Terminal** | Monospaced console text with a prompt. |
 | **Minimal** | Large, light numerals. |
@@ -82,7 +89,7 @@ Digit animation turns off automatically when Windows' *Animation effects* (reduc
 | System monitor | Working. CPU (total, per-core, 60s history), RAM, disks, network rates, process count, top processes, uptime. GPU load via Windows PDH. GPU temperature on NVIDIA only. CPU temperature always shows N/A (see Limitations). |
 | AI usage | Real data from Claude Code's status line and, as an opt-in experiment, Codex CLI local logs. Manual entry for both. With no source set up, the rows say NOT CONNECTED. No percentage is ever invented. |
 | Desktop embedding | Working. Borderless tool window with three layers: **on desktop** (default; pinned under all apps, raised above the desktop on Show Desktop), **normal**, and **always on top** (steps aside while a fullscreen game or presentation runs). |
-| Display modes | **Ambient** (fills the chosen display's work area), **Windowed** (movable, resizable region; default on a single monitor) and **Compact** (small board: clock, AI, focus first). On first run with two monitors, FLIP starts ambient on the secondary one. |
+| Display modes | **Ambient** (fills the chosen display's work area), **Windowed** (movable, resizable region) and **Compact** (small board: clock, AI, focus first). New installs start Windowed in the right half of the primary monitor, on the desktop layer, with the Balanced preset, FULL density and the split-flap clock. Pick another display or Ambient under Settings › Display. |
 | Placement | Display picker, 8 region presets (full, halves, quarters, centre), drag by the top strip, resize from the edges. Each mode keeps its own position, and FLIP falls back to the primary monitor (and moves back) when the chosen display is unplugged (and replugged). |
 | Layout | Presets: balanced, clock-focused, AI-focused, system-focused. Module visibility and order. Background opacity 40–100% with fully opaque text. |
 | Controls | Hover-revealed controls, a separate settings/detail panel window, four editable system-wide shortcuts, a tray menu, "reset layout & position", and "restore all defaults" (asks for confirmation). Launch on startup and start hidden. Single instance. |
@@ -113,7 +120,7 @@ npm run tauri:dev
 | Type check, lint and tests | `npm run check` |
 | Rust tests | `cd src-tauri && cargo test` |
 | Rust lint and format | `cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo fmt --check` |
-| Release build and installer (for publishing) | `npm run release`. Strips local build paths from the binary, checks for leftovers, and prints the installer's SHA-256 |
+| Release build and installers (for publishing) | `npm run release`. Builds the standard and offline (WebView2 included) installers into `dist-release/`, strips local build paths from the binary, checks for leftovers, and prints SHA-256 checksums |
 | Plain release build (for yourself) | `npm run tauri:build` |
 
 The installer is written to `src-tauri/target/release/bundle/nsis/FLIP_<version>_x64-setup.exe`. It installs per user, needs no admin rights, and adds a Start-menu entry and an uninstaller.
@@ -242,7 +249,7 @@ There is no database: settings, timer history and the AI cache are small documen
 
 1. Run `npm run check` and `cd src-tauri && cargo test`.
 2. Run `npm run release`. Rust normally embeds absolute source paths, including your Windows user profile, in the binary. The script remaps them and **fails if your user name, profile path or project path is still inside `flip.exe`**.
-3. Upload `src-tauri/target/release/bundle/nsis/FLIP_<version>_x64-setup.exe` to a GitHub release and paste the SHA-256 it printed into the release notes.
+3. Upload both installers from `dist-release/` (`FLIP_<version>_x64-setup.exe` and `FLIP_<version>_x64-offline-setup.exe`) to a GitHub release and paste the SHA-256 checksums it printed into the release notes.
 
 Never publish a build from plain `npm run tauri:build`; it keeps those local paths.
 

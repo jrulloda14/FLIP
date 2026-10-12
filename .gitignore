@@ -14,3 +14,6 @@ src-tauri/gen/
 *.log
 Thumbs.db
 Desktop.ini
+
+# Release installers
+dist-release/
