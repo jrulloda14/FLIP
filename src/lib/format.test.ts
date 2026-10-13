@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, bytes, clockText, dateMeta, dateText, duration, missing, mmss, orMissing, pct, rate, resetText, sessionDots, temp, utcOffset } from './format';
+import { ago, bytes, cityClock, clockText, dateMeta, dateText, duration, missing, mmss, orMissing, pct, rate, resetText, sessionDots, temp, utcOffset } from './format';
 import { boardColor, hexToRgb, pickLayout, scaleFor } from './layout';
 import type { HomeTime } from './types';
 
@@ -106,5 +106,16 @@ describe('missing values', () => {
   it('formats byte counts', () => {
     expect(bytes(512 * 1024 ** 2)).toBe('512 MB');
     expect(bytes(1.5 * 1024 ** 3)).toBe('1.5 GB');
+  });
+});
+
+describe('cityClock', () => {
+  it('formats world-clock times in 24 or 12 hours', () => {
+    expect(cityClock(13, 48, true)).toBe('13:48');
+    expect(cityClock(1, 5, true)).toBe('01:05');
+    expect(cityClock(13, 48, false)).toBe(' 1:48 PM');
+    expect(cityClock(0, 7, false)).toBe('12:07 AM');
+    expect(cityClock(12, 0, false)).toBe('12:00 PM');
+    expect(cityClock(23, 59, false)).toBe('11:59 PM');
   });
 });

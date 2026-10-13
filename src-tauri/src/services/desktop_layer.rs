@@ -57,7 +57,7 @@ pub fn layer_code(l: WindowLayer) -> u8 {
 }
 
 #[cfg(windows)]
-pub use imp::{apply_layer, desktop_solid_color, install, is_fullscreen_app_running, set_top_suppressed, stop};
+pub use imp::{apply_layer, desktop_solid_color, install, is_fullscreen_app_running, set_top_suppressed, show_without_focus, stop};
 
 #[cfg(not(windows))]
 mod fallback {
@@ -70,13 +70,17 @@ mod fallback {
         false
     }
     pub fn set_top_suppressed<R: tauri::Runtime>(_w: &tauri::WebviewWindow<R>, _s: bool) {}
+    pub fn show_without_focus<R: tauri::Runtime>(w: &tauri::WebviewWindow<R>) {
+        let _ = w.show();
+        let _ = w.set_always_on_top(true);
+    }
     pub fn desktop_solid_color() -> Option<String> {
         None
     }
     pub fn stop() {}
 }
 #[cfg(not(windows))]
-pub use fallback::{apply_layer, desktop_solid_color, install, is_fullscreen_app_running, set_top_suppressed, stop};
+pub use fallback::{apply_layer, desktop_solid_color, install, is_fullscreen_app_running, set_top_suppressed, show_without_focus, stop};
 
 #[cfg(windows)]
 mod imp {
@@ -89,9 +93,10 @@ mod imp {
     use windows::Win32::UI::Shell::{DefSubclassProc, SHQueryUserNotificationState, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
         GetClassNameW, GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowLongPtrW, SetWindowPos,
-        SystemParametersInfoW, EVENT_SYSTEM_FOREGROUND, GWL_EXSTYLE, GW_HWNDPREV, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST,
-        SPI_GETDESKWALLPAPER, STYLESTRUCT, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
-        WINDOWPOS, WINEVENT_OUTOFCONTEXT, WM_STYLECHANGING, WM_WINDOWPOSCHANGING, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+        ShowWindow, SystemParametersInfoW, EVENT_SYSTEM_FOREGROUND, GWL_EXSTYLE, GW_HWNDPREV, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST,
+        SPI_GETDESKWALLPAPER, STYLESTRUCT, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_SHOWNOACTIVATE,
+        SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOWPOS, WINEVENT_OUTOFCONTEXT, WM_STYLECHANGING, WM_WINDOWPOSCHANGING, WS_EX_APPWINDOW,
+        WS_EX_TOOLWINDOW,
     };
 
     use super::{layer_code, on_foreground, Raise};
@@ -280,6 +285,19 @@ mod imp {
 
     pub fn is_fullscreen_app_running() -> bool {
         unsafe { SHQueryUserNotificationState() }.map(|s| super::fullscreen_busy(s.0)).unwrap_or(false)
+    }
+
+    /// Shows a window above other windows without activating it, so the app the user is
+    /// typing in keeps keyboard focus. Clicking the window activates it as usual.
+    pub fn show_without_focus<R: Runtime>(w: &WebviewWindow<R>) {
+        let Ok(hwnd) = w.hwnd() else {
+            let _ = w.show();
+            return;
+        };
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        }
+        set_z(hwnd, HWND_TOPMOST);
     }
 
     /// In the Top layer, steps aside for fullscreen apps and returns afterwards.

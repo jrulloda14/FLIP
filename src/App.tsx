@@ -8,19 +8,14 @@ import { SystemMonitor } from './components/SystemMonitor';
 import { WorldClockTable } from './components/WorldClockTable';
 import { DotMeter } from './components/primitives';
 import { focusTotal, mmss, pct, rateShort, temp } from './lib/format';
-import { PITCH, boardColor, hexToRgb, pickLayout, scaleFor } from './lib/layout';
-import { FlipProvider, useFlip } from './lib/store';
+import { FONTS, PITCH, boardColor, hexToRgb, pickLayout, scaleFor } from './lib/layout';
+import { FlipProvider, useFlip, type Surface } from './lib/store';
 import type { DisplayMode, Layout, LayoutPreset, ModuleId, Settings } from './lib/types';
+import { CompletionToast } from './overlays/CompletionToast';
 import { ProviderDetail } from './overlays/ProviderDetail';
 import { SettingsWindow } from './overlays/SettingsWindow';
 import { SystemDetail } from './overlays/SystemDetail';
 import { TimerPopover } from './overlays/TimerPopover';
-
-const FONTS = {
-  jetbrains: '"JetBrains Mono", "Cascadia Mono", Consolas, monospace',
-  cascadia: '"Cascadia Mono", "Cascadia Code", Consolas, monospace',
-  consolas: 'Consolas, "Cascadia Mono", monospace',
-};
 
 /** Clock dot pitch for the FULL layout under each preset. */
 export const PRESET_PITCH: Record<LayoutPreset, number> = { balanced: 28, clock: 40, ai: 20, system: 22 };
@@ -251,7 +246,7 @@ export function Dashboard() {
           </div>
           {m.world && layout !== 'mini' && (
             <div className="fl-slot fl-slot--world" style={orderOf(m.order, 'world')}>
-              <WorldClockTable cities={clock.cities} />
+              <WorldClockTable cities={clock.cities} h24={s.clock.h24} />
             </div>
           )}
         </main>
@@ -346,10 +341,11 @@ function Shell() {
       </div>
     );
   }
+  if (surface === 'toast') return <CompletionToast />;
   return surface === 'panel' ? <Panel /> : <Dashboard />;
 }
 
-export default function App({ surface }: { surface?: 'main' | 'panel' }) {
+export default function App({ surface }: { surface?: Surface }) {
   return (
     <FlipProvider surface={surface}>
       <Shell />

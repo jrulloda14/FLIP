@@ -9,6 +9,7 @@ use tokio::sync::{watch, Notify};
 
 use crate::paths::AppPaths;
 use crate::services::ai_usage::{UsageCache, UsageSnapshot};
+use crate::services::completion::Completions;
 use crate::services::pomodoro::Timer;
 use crate::services::settings::Settings;
 use crate::services::system_monitor::SystemSnapshot;
@@ -49,6 +50,10 @@ pub struct AppState {
     pub desktop_color: Mutex<Option<String>>,
     /// Displays seen at the last check (0 = not yet checked), for profile auto-switching.
     pub display_count: AtomicUsize,
+    /// The timer-completion card waiting to be answered, if any.
+    pub completions: Mutex<Completions>,
+    /// The completion card's window is on screen.
+    pub toast_visible: AtomicBool,
 }
 
 /// Recovers from a poisoned lock instead of propagating a panic from another thread.

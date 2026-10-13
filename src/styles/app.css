@@ -357,7 +357,14 @@ body,
   color: var(--ink-2);
   font-size: calc(var(--u) * 18px);
 }
-[data-layout='compact'] .fl-board__r > span:nth-child(4) {
+[data-layout='compact'] .fl-board--world .fl-board__r > span:nth-child(3) {
+  order: 4;
+  font-size: calc(var(--u) * 13px);
+}
+[data-layout='compact'] .fl-board--world .fl-board__r > span:nth-child(4) {
+  font-size: calc(var(--u) * 18px);
+}
+[data-layout='compact'] .fl-board--world .fl-board__r > span:nth-child(5) {
   font-size: calc(var(--u) * 18px);
   color: var(--ink-2);
 }
@@ -909,4 +916,165 @@ body,
   display: flex;
   flex-wrap: wrap;
   gap: calc(var(--u) * 8px);
+}
+
+/* ---------- world clock: DAY column, 12-hour times ---------- */
+.fl-board--world .fl-board__r {
+  grid-template-columns: minmax(0, 1fr) calc(var(--u) * 76px) calc(var(--u) * 104px) calc(var(--u) * 100px) calc(var(--u) * 84px);
+  column-gap: calc(var(--u) * 28px);
+}
+.fl-board--world.is-12h .fl-board__r {
+  grid-template-columns: minmax(0, 1fr) calc(var(--u) * 76px) calc(var(--u) * 104px) calc(var(--u) * 150px) calc(var(--u) * 84px);
+}
+.fl-board--world .fl-board__r > span {
+  white-space: pre;
+}
+.fl-day {
+  color: var(--ink-3);
+}
+.fl-day.is-shift {
+  color: var(--ink-0);
+}
+.fl-board__h .fl-day,
+.fl-board__h > span:nth-child(3) {
+  color: inherit;
+}
+
+/* ---------- timer-completion card (its own small window) ---------- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.fl-toastwin {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+.fl-done {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 20px 18px;
+  border: 1px solid var(--rule-strong);
+  border-top: 2px solid var(--ink);
+  background: var(--bg-raised);
+  color: var(--ink);
+  animation: fl-done-in 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.fl-done.is-break {
+  border-top-color: var(--amber);
+}
+.fl-done.is-leaving {
+  animation: fl-done-out 180ms ease-in both;
+}
+.fl-done__bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--ink-3);
+}
+.fl-done__bar .fl-word {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.fl-done__h {
+  margin: 4px 0 0;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  white-space: pre;
+}
+.fl-done__d {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--ink-1);
+}
+.fl-done__act {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+}
+.fl-done .fl-btn:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+@keyframes fl-done-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+@keyframes fl-done-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-done,
+  .fl-done.is-leaving {
+    animation: none;
+  }
+}
+
+/* ---------- support link ---------- */
+.fl-icon {
+  vertical-align: -0.2em;
+}
+.fl-coffee {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.fl-coffee:hover,
+.fl-coffee:focus-visible {
+  color: var(--amber);
+}
+/* Compact stacks each city as a left-aligned card: drop the alignment padding of 12-hour times. */
+[data-layout='compact'] .fl-board--world .fl-board__r > span {
+  white-space: nowrap;
+}
+
+/* ---------- world clock: never spill into other modules ---------- */
+/* The board takes the height that is left and hides whole rows that don't fit (see WorldClockTable). */
+.fl-slot--world {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+[data-layout='compact'] .fl-slot--world {
+  max-height: 100%;
+}
+.fl-board__r.is-cut {
+  visibility: hidden;
+}
+.fl-board__more {
+  color: var(--amber);
+}
+
+/* ---------- settings rows: a wide control never squeezes its hint into one word per line ---------- */
+.fl-srow {
+  grid-template-columns: calc(var(--u) * 220px) minmax(0, max-content) minmax(calc(var(--u) * 150px), 1fr);
+}
+.fl-srow__c {
+  min-width: 0;
+}
+.fl-srow__c .fl-select {
+  max-width: 100%;
+  min-width: 0;
+  text-overflow: ellipsis;
 }

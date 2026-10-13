@@ -2,7 +2,32 @@
 
 All notable changes to FLIP. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [0.3.0] - Unreleased (draft)
+## [0.4.0] - Unreleased (draft)
+
+### Added
+
+- **Timer-completion card.** When a focus session or break ends, FLIP shows its own card instead of a Windows notification: **FOCUS COMPLETE** with *Start break* / *Dismiss*, or **BREAK COMPLETE** with *Resume focus* / *Dismiss*.
+  - It appears in the bottom-right corner of the dashboard's screen, above other windows, without taking keyboard focus, and never moves or resizes the dashboard.
+  - Enter presses the focused button and Esc dismisses. The heading flips in board-style, with entrance and exit animations that respect Windows' *Animation effects* setting.
+  - Shown once per completion. Repeated events and double clicks act once. Dismissing never changes the timer, and changing the timer elsewhere closes the card.
+  - Waits while a fullscreen app or presentation runs.
+- **Completion sound** (Settings › Focus): plays the Windows notification sound with the card. Off by default.
+- **World clocks follow the 12/24-hour setting** and show AM/PM in 12-hour mode.
+- **DAY column** in the world clock: each city's weekday and date, lit when it differs from home.
+- **Buy me a coffee** button in the Settings footer. It opens `buymeacoffee.com/flipdashboard` in your browser, only when clicked.
+
+### Fixed
+
+- The world clock no longer runs into the bottom status strip when there are more cities than fit (e.g. the Clock preset with eight cities). Rows that don't fit are hidden whole, and the header shows how many (+2).
+- Settings rows with a wide control (such as the home time zone) no longer squeeze their hint into one word per line.
+
+### Changed
+
+- Settings › Focus › Notifications is now *When a timer ends*: focus card, break card and sound.
+- Timer completion no longer uses Windows notifications. In development builds those appeared under PowerShell's name. High CPU, memory and disk alerts still use Windows notifications.
+- README: screenshots refreshed (DAY column, completion card, coffee button), and the acknowledgment now credits Aero's author, Bryl Lim, and notes Aero's CC BY 4.0 license.
+
+## [0.3.0] - 2026-10-13
 
 Windows power features and smart profiles.
 
@@ -64,6 +89,7 @@ First public release.
 - Tray menu, editable system-wide shortcuts, settings panel, launch on startup.
 - Per-user NSIS installer; no administrator rights.
 
-[0.3.0]: https://github.com/jrulloda14/FLIP/compare/v0.2.0...HEAD
+[0.4.0]: https://github.com/jrulloda14/FLIP/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/jrulloda14/FLIP/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jrulloda14/FLIP/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jrulloda14/FLIP/releases/tag/v0.1.0

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-completion-action"
+description = "Enables the completion_action command without any pre-configured scope."
+commands.allow = ["completion_action"]
+
+[[permission]]
+identifier = "deny-completion-action"
+description = "Denies the completion_action command without any pre-configured scope."
+commands.deny = ["completion_action"]

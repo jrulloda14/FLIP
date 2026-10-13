@@ -17,6 +17,10 @@ use crate::state::AppState;
 
 pub const MAIN: &str = "main";
 pub const PANEL: &str = "panel";
+/// Small window for the timer-completion card.
+pub const TOAST: &str = "toast";
+/// Logical size of the completion card window.
+const TOAST_SIZE: (f64, f64) = (440.0, 214.0);
 /// A saved window must overlap a monitor by at least this much to be restored there.
 const MIN_VISIBLE: i64 = 120;
 /// Gap between a region preset and the edge of the work area (logical px).
@@ -446,6 +450,58 @@ pub fn open_panel<R: Runtime>(app: &AppHandle<R>, view: &str) {
     let _ = panel.set_focus();
 }
 
+// ------------------------------------------------------------------ completion card window
+
+pub fn create_toast<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
+    let w = WebviewWindowBuilder::new(app, TOAST, WebviewUrl::App("index.html?view=toast".into()))
+        .title("FLIP")
+        .decorations(false)
+        .resizable(false)
+        .visible(false)
+        .focused(false)
+        .skip_taskbar(true)
+        .shadow(false)
+        .inner_size(TOAST_SIZE.0, TOAST_SIZE.1)
+        .background_color(tauri::window::Color(11, 11, 11, 255))
+        .theme(Some(tauri::Theme::Dark))
+        .build()?;
+    desktop_layer::install(&w, false);
+    Ok(w)
+}
+
+/// Bottom-right of the work area, inset by a margin.
+pub fn toast_rect(work: &Rect, w: i64, h: i64, margin: i64) -> Rect {
+    let w = w.min(work.w - 2 * margin).max(1);
+    let h = h.min(work.h - 2 * margin).max(1);
+    Rect { x: work.x + work.w - w - margin, y: work.y + work.h - h - margin, w, h }
+}
+
+/// Shows the completion card in the bottom-right corner of the dashboard's monitor (or the
+/// primary monitor while the dashboard is hidden), above other windows, without taking focus.
+/// The dashboard window itself is never moved or resized.
+pub fn show_toast<R: Runtime>(app: &AppHandle<R>) {
+    let Some(t) = app.get_webview_window(TOAST) else { return };
+    let monitor = main_window(app)
+        .filter(|m| m.is_visible().unwrap_or(false))
+        .and_then(|m| m.current_monitor().ok().flatten())
+        .or_else(|| t.primary_monitor().ok().flatten());
+    if let Some(m) = monitor {
+        let a = m.work_area();
+        let s = m.scale_factor();
+        let work = Rect { x: a.position.x as i64, y: a.position.y as i64, w: a.size.width as i64, h: a.size.height as i64 };
+        let r = toast_rect(&work, (TOAST_SIZE.0 * s) as i64, (TOAST_SIZE.1 * s) as i64, (REGION_MARGIN * s) as i64);
+        set_rect(&t, r);
+    }
+    desktop_layer::show_without_focus(&t);
+}
+
+pub fn hide_toast<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(t) = app.get_webview_window(TOAST) {
+        let _ = t.set_always_on_top(false);
+        let _ = t.hide();
+    }
+}
+
 pub fn close_panel<R: Runtime>(app: &AppHandle<R>) {
     if let Some(p) = app.get_webview_window(PANEL) {
         let _ = p.set_always_on_top(false);
@@ -525,6 +581,15 @@ mod tests {
         assert_eq!(display_label(r"\\.\DISPLAY2", Some("Dell U2723QE"), (2560, 1440), false), "DISPLAY 2 · DELL U2723QE · 2560×1440");
         assert_eq!(default_region(DisplayMode::Ambient), Region::Full);
         assert_eq!(default_region(DisplayMode::Compact), Region::TopRight);
+    }
+
+    #[test]
+    fn toast_sits_in_the_bottom_right_corner_and_fits_small_screens() {
+        let work = Rect { x: 1920, y: 0, w: 2560, h: 1400 };
+        assert_eq!(toast_rect(&work, 440, 214, 24), Rect { x: 1920 + 2560 - 440 - 24, y: 1400 - 214 - 24, w: 440, h: 214 });
+        let tiny = Rect { x: 0, y: 0, w: 400, h: 200 };
+        let r = toast_rect(&tiny, 440, 214, 24);
+        assert!(r.x >= 0 && r.y >= 0 && r.x + r.w <= 400 && r.y + r.h <= 200);
     }
 
     #[test]

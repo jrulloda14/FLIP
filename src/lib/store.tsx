@@ -5,6 +5,8 @@ import { api, errorMessage, subscribe, type WindowCommand } from './ipc';
 import type {
   Bootstrap,
   ClockSnapshot,
+  CompletionAction,
+  CompletionNotice,
   ManualWindow,
   PomodoroCommand,
   PomodoroView,
@@ -18,11 +20,13 @@ import type {
 /** What the panel shows. `null` closes it. */
 export type Overlay = null | 'settings' | 'timer' | 'system' | { ai: string };
 
-export type Surface = 'main' | 'panel';
+/** `main` is the dashboard, `panel` the settings/detail window, `toast` the completion card. */
+export type Surface = 'main' | 'panel' | 'toast';
 
 export function currentSurface(): Surface {
   try {
-    return new URLSearchParams(window.location.search).get('view') === 'panel' ? 'panel' : 'main';
+    const v = new URLSearchParams(window.location.search).get('view');
+    return v === 'panel' || v === 'toast' ? v : 'main';
   } catch {
     return 'main';
   }
@@ -58,6 +62,8 @@ export interface State {
   /** Panel window only: the view on screen. */
   overlay: Overlay;
   settingsTab: string;
+  /** Timer-completion card waiting to be answered. */
+  completion: CompletionNotice | null;
 }
 
 type Action =
@@ -72,7 +78,8 @@ type Action =
   | { t: 'aiRefreshing'; v: boolean }
   | { t: 'runtime'; r: RuntimeStatus }
   | { t: 'overlay'; o: Overlay; tab?: string }
-  | { t: 'tab'; tab: string };
+  | { t: 'tab'; tab: string }
+  | { t: 'completion'; n: CompletionNotice | null };
 
 export const initialState: State = {
   status: 'loading',
@@ -88,6 +95,7 @@ export const initialState: State = {
   runtime: null,
   overlay: null,
   settingsTab: 'DISPLAY',
+  completion: null,
 };
 
 export function reducer(s: State, a: Action): State {
@@ -107,6 +115,7 @@ export function reducer(s: State, a: Action): State {
         error: a.surface === 'main' ? a.b.settingsNotice : null,
         overlay: v ? v.overlay : null,
         settingsTab: v?.tab ?? s.settingsTab,
+        completion: a.b.completion ?? null,
       };
     }
     case 'fatal':
@@ -131,6 +140,10 @@ export function reducer(s: State, a: Action): State {
       return { ...s, overlay: a.o, settingsTab: a.tab ?? s.settingsTab };
     case 'tab':
       return { ...s, settingsTab: a.tab };
+    case 'completion':
+      // The same notice arriving twice (event + bootstrap, repeated events) changes nothing.
+      if (s.completion?.id === a.n?.id) return s;
+      return { ...s, completion: a.n };
   }
 }
 
@@ -150,6 +163,10 @@ export interface Actions {
   setManualUsage: (providerId: string, windows: ManualWindow[]) => Promise<void>;
   clearManualUsage: (providerId: string) => Promise<void>;
   window: (c: WindowCommand) => Promise<void>;
+  /** Answers completion card `id`. Dismiss never changes the timer. */
+  completionAction: (id: number, a: CompletionAction) => Promise<void>;
+  /** Opens the Buy Me a Coffee page in the default browser. */
+  openSupportPage: () => Promise<void>;
   /** Dashboard: opens the panel window. Panel: switches view; `null` closes the panel. */
   openOverlay: (o: Overlay, tab?: string) => void;
   setTab: (tab: string) => void;
@@ -173,6 +190,7 @@ export function FlipProvider({ children, surface = currentSurface() }: { childre
       ai: (a) => dispatch({ t: 'ai', a }),
       settings: (s) => dispatch({ t: 'settings', s }),
       status: (r) => dispatch({ t: 'runtime', r }),
+      completion: (n) => dispatch({ t: 'completion', n }),
       panel: (v) => {
         const p = fromView(v);
         dispatch({ t: 'overlay', o: p.overlay, tab: p.tab });
@@ -273,6 +291,14 @@ export function FlipProvider({ children, surface = currentSurface() }: { childre
       },
       window: async (c) => {
         await run(api.window(c));
+      },
+      completionAction: async (id, a) => {
+        const p = await run(api.completionAction(id, a));
+        if (p) dispatch({ t: 'pomodoro', p });
+        dispatch({ t: 'completion', n: null });
+      },
+      openSupportPage: async () => {
+        await run(api.openSupportPage());
       },
       openOverlay: (o, tab) => {
         if (surface === 'panel') {

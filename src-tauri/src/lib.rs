@@ -66,6 +66,8 @@ pub fn run() {
                 top_suppressed: AtomicBool::new(false),
                 desktop_color: Mutex::new(desktop_layer::desktop_solid_color()),
                 display_count: std::sync::atomic::AtomicUsize::new(0),
+                completions: Mutex::new(Default::default()),
+                toast_visible: AtomicBool::new(false),
             });
 
             // Keep the OS autostart entry in line with the saved preference.
@@ -91,6 +93,7 @@ pub fn run() {
                 }
             }
             window::create_panel(app.handle())?;
+            window::create_toast(app.handle())?;
 
             let handles = tray::build(app.handle())?;
             app.manage(handles);
@@ -139,6 +142,8 @@ pub fn run() {
             commands::close_panel,
             commands::apply_region,
             commands::reset_layout,
+            commands::completion_action,
+            commands::open_support_page,
             commands::activate_profile,
             commands::create_profile,
             commands::rename_profile,

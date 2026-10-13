@@ -4,6 +4,8 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
   Bootstrap,
   ClockSnapshot,
+  CompletionAction,
+  CompletionNotice,
   ManualWindow,
   PomodoroCommand,
   PomodoroView,
@@ -22,6 +24,7 @@ export const EVENTS = {
   settings: 'flip://settings',
   status: 'flip://status',
   panel: 'flip://panel',
+  completion: 'flip://completion',
 } as const;
 
 export type WindowCommand = 'hide' | 'quit';
@@ -43,6 +46,8 @@ export const api = {
     invoke<UsageSnapshot[]>('set_manual_usage', { providerId, windows }),
   clearManualUsage: (providerId: string) => invoke<UsageSnapshot[]>('clear_manual_usage', { providerId }),
   window: (command: WindowCommand) => invoke<void>('window_command', { command }),
+  completionAction: (id: number, action: CompletionAction) => invoke<PomodoroView>('completion_action', { id, action }),
+  openSupportPage: () => invoke<void>('open_support_page'),
   openPanel: (view: string) => invoke<void>('open_panel', { view }),
   closePanel: () => invoke<void>('close_panel'),
 };
@@ -55,6 +60,7 @@ export interface Handlers {
   settings: (s: Settings) => void;
   status: (s: RuntimeStatus) => void;
   panel: (view: string) => void;
+  completion: (n: CompletionNotice | null) => void;
 }
 
 /** Subscribes to every backend event once. Returns a single cleanup function. */
@@ -67,6 +73,7 @@ export async function subscribe(h: Handlers): Promise<UnlistenFn> {
     listen<Settings>(EVENTS.settings, (e) => h.settings(e.payload)),
     listen<RuntimeStatus>(EVENTS.status, (e) => h.status(e.payload)),
     listen<string>(EVENTS.panel, (e) => h.panel(e.payload)),
+    listen<CompletionNotice | null>(EVENTS.completion, (e) => h.completion(e.payload)),
   ]);
   return () => offs.forEach((off) => off());
 }

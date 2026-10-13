@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Least privilege for the FLIP dashboard and panel windows: listen to backend events, drag the borderless windows, and call FLIP's own commands. No filesystem, shell, HTTP or opener access.",
+  "description": "Least privilege for the FLIP dashboard, panel and timer-completion windows: listen to backend events, drag the borderless windows, and call FLIP's own commands. No filesystem, shell, HTTP or opener access.",
   "windows": [
     "main",
-    "panel"
+    "panel",
+    "toast"
   ],
   "permissions": [
     "core:event:allow-listen",
@@ -26,6 +27,8 @@
     "allow-create-profile",
     "allow-rename-profile",
     "allow-delete-profile",
-    "allow-reset-profile"
+    "allow-reset-profile",
+    "allow-completion-action",
+    "allow-open-support-page"
   ]
 }

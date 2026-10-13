@@ -14,6 +14,8 @@ fn main() {
         "close_panel",
         "apply_region",
         "reset_layout",
+        "completion_action",
+        "open_support_page",
         "activate_profile",
         "create_profile",
         "rename_profile",

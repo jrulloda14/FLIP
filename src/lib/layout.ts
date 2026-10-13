@@ -1,4 +1,10 @@
-import type { BackgroundColor, Layout, LayoutPref } from './types';
+import type { BackgroundColor, FontChoice, Layout, LayoutPref } from './types';
+
+export const FONTS: Record<FontChoice, string> = {
+  jetbrains: '"JetBrains Mono", "Cascadia Mono", Consolas, monospace',
+  cascadia: '"Cascadia Mono", "Cascadia Code", Consolas, monospace',
+  consolas: 'Consolas, "Cascadia Mono", monospace',
+};
 
 export const BASE: Record<Layout, [number, number]> = {
   full: [1920, 1080],

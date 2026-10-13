@@ -10,6 +10,14 @@ export function clockText(h: HomeTime, h24: boolean): string {
   return `${h.hour % 12 || 12}:${pad2(h.minute)}`;
 }
 
+/** A world-clock time in the board's 12/24-hour format: "13:48" or " 1:48 PM" (padded so
+ *  the column stays aligned). */
+export function cityClock(hour: number, minute: number, h24: boolean): string {
+  if (h24) return `${pad2(hour)}:${pad2(minute)}`;
+  const h = hour % 12 || 12;
+  return `${String(h).padStart(2, ' ')}:${pad2(minute)} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
 export function ampm(h: HomeTime, h24: boolean): string {
   return h24 ? '' : h.hour < 12 ? 'AM' : 'PM';
 }

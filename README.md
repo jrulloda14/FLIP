@@ -8,6 +8,8 @@
 
 **[Download for Windows](https://github.com/jrulloda14/FLIP/releases/latest)** · free and open source (MIT) · Windows 10 and 11, x64
 
+[![Buy me a coffee](https://img.shields.io/badge/%E2%98%95%20Buy%20me%20a%20coffee-000000?style=for-the-badge&labelColor=000000)](https://buymeacoffee.com/flipdashboard)
+
 FLIP sits on the desktop instead of asking for another app window. It has no title bar, no taskbar button and no Alt+Tab entry. By default it stays under your applications and above the wallpaper, and it is still there when you press Win+D. Pick a clock style, choose what the board shows and where, and save that as a profile you can switch to from the tray or a shortcut.
 
 Everything runs locally. FLIP has no account, no telemetry and makes no network requests.
@@ -16,7 +18,7 @@ Everything runs locally. FLIP has no account, no telemetry and makes no network 
 
 ## Contents
 
-[Key features](#key-features) · [Screenshots](#screenshots) · [Download and installation](#download-and-installation) · [First-run guide](#first-run-guide) · [Desktop embedding and display modes](#desktop-embedding-and-display-modes) · [Clock Studio](#clock-studio-and-clock-templates) · [Profiles](#multi-monitor-profiles) · [System monitoring](#windows-system-monitoring) · [AI usage](#ai-usage-integrations) · [Shortcuts and tray](#keyboard-shortcuts-and-tray-controls) · [Privacy and security](#privacy-and-security) · [Limitations](#known-limitations) · [Build from source](#build-from-source) · [Architecture](#architecture-overview) · [Roadmap](#roadmap) · [Contributing](#contributing) · [Acknowledgments](#acknowledgments--inspiration) · [License](#license)
+[Key features](#key-features) · [Screenshots](#screenshots) · [Download and installation](#download-and-installation) · [First-run guide](#first-run-guide) · [Desktop embedding and display modes](#desktop-embedding-and-display-modes) · [Clock Studio](#clock-studio-and-clock-templates) · [World clocks and focus timer](#world-clocks-and-focus-timer) · [Profiles](#multi-monitor-profiles) · [System monitoring](#windows-system-monitoring) · [AI usage](#ai-usage-integrations) · [Shortcuts and tray](#keyboard-shortcuts-and-tray-controls) · [Privacy and security](#privacy-and-security) · [Limitations](#known-limitations) · [Build from source](#build-from-source) · [Architecture](#architecture-overview) · [Roadmap](#roadmap) · [Support](#support) · [Contributing](#contributing) · [Acknowledgments](#acknowledgments--inspiration) · [License](#license)
 
 ## Key features
 
@@ -28,7 +30,7 @@ Everything runs locally. FLIP has no account, no telemetry and makes no network 
 - **System monitor.** CPU total and per core, RAM used and available, disk space and read/write activity, network throughput, GPU load and memory, uptime, process count, NVIDIA GPU temperature. A missing reading shows **N/A** (this PC can't provide it) or **ERR** (a reading failed and is retried), never a fake zero.
 - **Optional alerts** for sustained high CPU, high memory and low disk space, with thresholds and cooldowns. FLIP only notifies; it never changes anything on your system.
 - **AI coding-plan usage** for Claude (via Claude Code's status line) and Codex (experimental, from local CLI logs), or entered by hand. No API keys, no passwords, no scraping.
-- **World clocks and a Pomodoro timer.** IANA time zones with correct daylight saving; a deadline-based timer that survives sleep and restarts.
+- **World clocks and a Pomodoro timer.** IANA time zones with correct daylight saving, in your 12- or 24-hour format with each city's day. A deadline-based timer that survives sleep and restarts, and a FLIP-styled card when a focus session or break ends.
 - **Installs per user**, needs no administrator rights, and has an offline installer.
 
 ## Screenshots
@@ -45,9 +47,9 @@ Everything runs locally. FLIP has no account, no telemetry and makes no network 
 |---|---|
 | ![Dashboard with a focus session running: the Pomodoro countdown leads the left panel](docs/assets/focus.png) | ![Settings › Display: display picker, mode, region, layer, board colour and opacity](docs/assets/display.png) |
 
-| Alerts (Settings › System) | |
+| Timer-completion card | Alerts (Settings › System) |
 |---|---|
-| ![Settings › System: metric toggles, sampling interval and the opt-in alerts section](docs/assets/alerts.png) | |
+| ![FOCUS COMPLETE card: next is a five-minute short break, with START BREAK and DISMISS buttons](docs/assets/completion-card.png) | ![Settings › System: metric toggles, sampling interval and the opt-in alerts section](docs/assets/alerts.png) |
 
 ### About these images
 
@@ -124,6 +126,25 @@ Settings › Clock restyles the main clock. Every template shows real time from 
 Shared options: 12/24-hour, seconds, date and format, week + UTC line, size, digit spacing, digit colour (bright, soft or dim), colon blink, and digit animation on/off at 250, 320 or 400 ms.
 
 Animation turns off automatically when Windows' *Animation effects* setting is off. After sleep, each digit flips once to the current time instead of replaying missed minutes. The rollover demo uses clearly labeled sample times.
+
+## World clocks and focus timer
+
+**World clocks** (Settings › Locations, up to 8 cities) use IANA time zones, so daylight-saving changes are always right. Times follow the main clock's 12/24-hour setting (`1:48 PM` or `13:48`). The **DAY** column shows each city's weekday and date: dimmed when it's the same day as at home, lit when the city is already on tomorrow or still on yesterday. **DIFF** is the offset from your home zone.
+
+**Focus timer** (Settings › Focus): a Pomodoro timer with focus, short-break and long-break lengths, sessions before a long break, and optional auto-start. It counts to a deadline rather than ticking down, so it stays right across sleep and restarts.
+
+**When a timer ends,** FLIP shows its own card in the bottom-right corner of the dashboard's screen, not a Windows notification or message box:
+
+| Finished | Card | Actions |
+|---|---|---|
+| Focus session | **FOCUS COMPLETE**, with the next break and its length | **Start break** (Enter) · **Dismiss** (Esc) |
+| Break | **BREAK COMPLETE**, with the next session | **Resume focus** (Enter) · **Dismiss** (Esc) |
+
+- The card appears above other windows **without taking focus**, so whatever you're typing in keeps the keyboard. Click it to use the keys.
+- **Dismiss** only closes the card; the timer stays exactly as it is. Starting, pausing or skipping the timer from anywhere else (tray, shortcut, dashboard) closes the card too.
+- It appears once per completion, even if FLIP is hidden or you change display mode. While a fullscreen game or presentation runs, the card waits and appears when it ends.
+- With **auto-start** on, the next phase has already started, so the card says so and only offers Dismiss.
+- Turn the cards off separately for focus and breaks, and turn on an optional **sound** (your Windows notification sound; off by default), in Settings › Focus › When a timer ends.
 
 ## Multi-monitor profiles
 
@@ -224,6 +245,7 @@ The Claude bridge: Claude Code runs `flip.exe --claude-statusline` with the stat
 Everything FLIP does happens on your PC.
 
 - **No account, telemetry, analytics, update checks or network requests.** The app contains no HTTP client. Its content security policy allows only Tauri's local IPC channel.
+- **The one web link:** the *Buy me a coffee* button in Settings opens `buymeacoffee.com/flipdashboard` in your default browser, only when you click it. FLIP itself sends nothing.
 - **One exception, at install time:** if WebView2 is missing, the standard installer downloads it from Microsoft. The offline installer doesn't.
 - **No credentials** are asked for or stored.
 - **No administrator rights:** per-user install, per-user settings, unelevated APIs.
@@ -263,7 +285,7 @@ To remove everything, uninstall with *delete app data* ticked, or delete the two
 - **Virtual desktops:** FLIP stays on the virtual desktop where it started.
 - **Memory:** the Rust process uses about 35 MB; WebView2's helper processes add roughly 150–350 MB depending on GPU and driver.
 - **AI usage** is only as fresh as its source, and the Codex source is experimental.
-- Development builds show notifications under PowerShell's name; installed builds use FLIP's.
+- **Alert notifications** (high CPU, memory, disk) are Windows notifications. Development builds show them under PowerShell's name; installed builds use FLIP's. Timer completion uses FLIP's own card instead.
 
 ### Troubleshooting
 
@@ -312,7 +334,8 @@ Built with **Tauri 2** (Rust, WebView2), **React 19 + TypeScript** and **Vite**.
 src/                        React UI
   components/               ClockFace (Clock Studio templates), DigitalClock, AIUsageTable, WorldClockTable,
                             SystemMonitor, PomodoroPanel, StatusBar, primitives (DotMatrix, DotMeter, DotPlot)
-  overlays/                 SettingsWindow, ProfilesTab, SystemDetail, ProviderDetail, TimerPopover (panel window)
+  overlays/                 SettingsWindow, ProfilesTab, SystemDetail, ProviderDetail, TimerPopover (panel window),
+                            CompletionToast (timer-completion window; card in components/TimerCompletion)
   lib/                      types.ts (mirrors the Rust models), ipc.ts (the only file that calls Tauri),
                             store.tsx, format.ts, layout.ts, clock.ts
   preview.tsx               development preview with mocked IPC
@@ -327,12 +350,13 @@ src-tauri/src/
     system_monitor.rs       sysinfo sampling, disk I/O rates, limitations (unsupported vs error)
     gpu.rs                  PDH GPU Engine + Adapter Memory counters, DXGI adapter, NVML temperature
     alerts.rs               opt-in threshold alerts with cooldowns
-    window.rs               displays and stable monitor IDs, modes, regions, fallback, panel window
+    completion.rs           timer-completion notices: once per completion, answered once by id
+    window.rs               displays and stable monitor IDs, modes, regions, fallback, panel and card windows
     desktop_layer.rs        Win32 desktop layer, Show Desktop handling, fullscreen detection
     tray.rs, shortcuts.rs, pomodoro.rs, world_clock.rs, ai_usage/
 ```
 
-The backend pushes events (`flip://clock` every second, `flip://system` every sample, plus pomodoro, ai, settings, status and panel), and the UI subscribes once in `store.tsx`. Commands return the validated state, which the backend also broadcasts to both windows. Profiles live inside `settings.json`: the live settings are what FLIP renders, and the active profile mirrors them.
+The backend pushes events (`flip://clock` every second, `flip://system` every sample, plus pomodoro, ai, settings, status, panel and completion), and the UI subscribes once in `store.tsx`. Commands return the validated state, which the backend also broadcasts to both windows. Profiles live inside `settings.json`: the live settings are what FLIP renders, and the active profile mirrors them.
 
 ## Roadmap
 
@@ -341,6 +365,7 @@ The backend pushes events (`flip://clock` every second, `flip://system` every sa
 - v0.1.0: desktop-embedded board, dot-matrix clock, world clocks, Pomodoro, system monitor, AI usage, tray, shortcuts, installer.
 - v0.2.0: Clock Studio and the split-flap clock, region presets, offline installer.
 - v0.3.0: multi-monitor profiles with stable monitor IDs and optional auto-switch, disk activity, GPU memory, available memory, N/A vs ERR states, opt-in alerts, next-profile shortcut.
+- v0.4.0: FLIP-styled timer-completion card with Start break / Resume focus, optional completion sound, world clocks in 12-hour format with each city's day.
 
 **Next**
 
@@ -351,6 +376,10 @@ The backend pushes events (`flip://clock` every second, `flip://system` every sa
 - A 24-hour AI usage history chart.
 - Drag-and-drop ordering for modules and cities.
 - Code-signed installers.
+
+## Support
+
+FLIP is free. If it's useful to you, you can [buy me a coffee](https://buymeacoffee.com/flipdashboard), or use the button at the bottom of FLIP's Settings window.
 
 ## Contributing
 
@@ -366,11 +395,11 @@ See [CHANGELOG.md](CHANGELOG.md) for what changed in each version and [docs/HAND
 
 ## Acknowledgments & Inspiration
 
-FLIP was inspired in part by [Aero for macOS](https://github.com/bryllim/aero), which showed the appeal of an ambient desktop dashboard.
+FLIP was inspired in part by **[Aero](https://github.com/bryllim/aero)**, a macOS desktop clock by **[Bryl Lim](https://bryllim.com)** with airport-inspired displays, which showed the appeal of an ambient desktop dashboard.
 
-FLIP brings that idea to Windows with its own implementation, focused on Windows desktop integration, system monitoring, multi-monitor layouts and developer workflows.
+FLIP brings that idea to Windows with its own implementation, focused on Windows desktop integration, system monitoring, multi-monitor layouts and developer workflows. FLIP is written from scratch in Rust and TypeScript. It doesn't include or adapt Aero's source code, artwork or documentation, which are © 2026 Bryl Lim and licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
-FLIP is an independent project and is not affiliated with or endorsed by Aero or its author.
+FLIP is an independent project and is not affiliated with or endorsed by Aero or Bryl Lim.
 
 ## License
 

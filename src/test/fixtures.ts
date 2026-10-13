@@ -15,7 +15,7 @@ const base = (): Omit<Settings, 'profiles'> => ({
   system: { temps: true, gpu: true, net: true, disk: true, plot: true, sampleSeconds: 1, tempUnit: 'C' },
   window: { mode: 'windowed', layer: 'desktop', display: null, displayId: null, launchOnStartup: false, startHidden: false, closeToTray: true, hideControlsAfter: 3, windowedRect: null, compactRect: null, windowedRegion: 'rightHalf', compactRegion: 'topRight' },
   shortcuts: { toggle: 'Ctrl+Alt+F', settings: 'Ctrl+Alt+S', layout: 'Ctrl+Alt+L', focus: 'Ctrl+Alt+P', profile: 'Ctrl+Alt+N' },
-  notifications: { focusComplete: true, breakComplete: true },
+  notifications: { focusComplete: true, breakComplete: true, sound: false },
   alerts: { cpu: false, cpuPercent: 90, cpuMinutes: 2, memory: false, memoryPercent: 90, disk: false, diskFreePercent: 10, cooldownMinutes: 30 },
 });
 
@@ -111,8 +111,8 @@ export const bootstrap = (over: Partial<Bootstrap> = {}): Bootstrap => ({
     epochMs: Date.parse('2026-10-06T04:43:00Z'),
     home: { tz: 'Asia/Singapore', year: 2026, month: 10, day: 6, hour: 12, minute: 43, second: 0, weekday: 'TUE', isoWeek: 41, utcOffsetMinutes: 480 },
     cities: [
-      { name: 'LONDON', code: 'LHR', tz: 'Europe/London', time: '05:43', diffMinutes: -420, diffLabel: '-7H', dayShift: 0, valid: true },
-      { name: 'TOKYO', code: 'HND', tz: 'Asia/Tokyo', time: '13:43', diffMinutes: 60, diffLabel: '+1H', dayShift: 0, valid: true },
+      { name: 'LONDON', code: 'LHR', tz: 'Europe/London', time: '05:43', hour: 5, minute: 43, date: 'TUE 06', diffMinutes: -420, diffLabel: '-7H', dayShift: 0, valid: true },
+      { name: 'TOKYO', code: 'HND', tz: 'Asia/Tokyo', time: '13:43', hour: 13, minute: 43, date: 'TUE 06', diffMinutes: 60, diffLabel: '+1H', dayShift: 0, valid: true },
     ],
   },
   system: system(),
@@ -131,5 +131,6 @@ export const bootstrap = (over: Partial<Bootstrap> = {}): Bootstrap => ({
     desktopColor: '#000000',
   },
   panelView: 'settings',
+  completion: null,
   ...over,
 });

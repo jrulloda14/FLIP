@@ -1,7 +1,7 @@
 {
   "name": "flip",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "FLIP: an airport-board clock and productivity dashboard for Windows",
   "scripts": {

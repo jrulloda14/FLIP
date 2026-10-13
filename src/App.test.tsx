@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bootstrap, okClaude, pomodoro } from './test/fixtures';
-import type { Settings } from './lib/types';
+import type { CompletionNotice, Settings } from './lib/types';
 
 // Mock the Tauri bridge: invoke() resolves from a table, listen() records handlers.
 const handlers = new Map<string, (e: { payload: unknown }) => void>();
@@ -48,7 +48,10 @@ beforeEach(() => {
       case 'window_command':
       case 'open_panel':
       case 'close_panel':
+      case 'open_support_page':
         return undefined;
+      case 'completion_action':
+        return pomodoro({ phase: 'shortBreak', running: args!.action === 'startNext', remainingMs: 5 * 60_000, phaseTotalMs: 5 * 60_000 });
       default:
         throw new Error(`unexpected ${cmd}`);
     }
@@ -522,5 +525,126 @@ describe('system detail', () => {
     expect(screen.getByText('MEMORY AVAILABLE')).toBeInTheDocument();
     expect(within(screen.getByTestId('limits-error')).getByText('GPU LOAD')).toBeInTheDocument();
     expect(within(screen.getByTestId('limits-unsupported')).getByText('CPU TEMP')).toBeInTheDocument();
+  });
+});
+
+describe('timer completion card', () => {
+  const focusDone = (over: Partial<CompletionNotice> = {}): CompletionNotice => ({
+    id: 7,
+    finished: 'focus',
+    next: 'shortBreak',
+    nextMs: 5 * 60_000,
+    nextRunning: false,
+    session: 2,
+    sessions: 4,
+    at: '2026-10-13T05:00:00Z',
+    ...over,
+  });
+  const breakDone = (over: Partial<CompletionNotice> = {}): CompletionNotice =>
+    focusDone({ id: 8, finished: 'shortBreak', next: 'focus', nextMs: 25 * 60_000, session: 3, ...over });
+  const calls = (cmd: string) => invoke.mock.calls.filter((c) => c[0] === cmd);
+  const renderToast = async (n: CompletionNotice | null) => {
+    const b = bootstrap({ completion: n });
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => (cmd === 'get_bootstrap' ? b : base(cmd, args)));
+    render(<App surface="toast" />);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith('get_bootstrap'));
+  };
+
+  it('shows FOCUS COMPLETE with START BREAK and DISMISS, focused for the keyboard', async () => {
+    await renderToast(focusDone());
+    const card = await screen.findByRole('alertdialog', { name: 'FOCUS COMPLETE' });
+    expect(card).toHaveAccessibleDescription('NEXT · SHORT BREAK · 05:00');
+    const start = within(card).getByRole('button', { name: /START BREAK/ });
+    expect(start).toHaveFocus();
+    expect(within(card).getByRole('button', { name: /DISMISS/ })).toBeInTheDocument();
+  });
+
+  it('shows BREAK COMPLETE with RESUME FOCUS', async () => {
+    await renderToast(breakDone());
+    const card = await screen.findByRole('alertdialog', { name: 'BREAK COMPLETE' });
+    expect(card).toHaveAccessibleDescription('NEXT · FOCUS · 25:00 · SESSION 3/4');
+    expect(within(card).getByRole('button', { name: /RESUME FOCUS/ })).toBeInTheDocument();
+  });
+
+  it('starts the next phase once, even when clicked twice', async () => {
+    await renderToast(focusDone());
+    const start = await screen.findByRole('button', { name: /START BREAK/ });
+    await userEvent.click(start);
+    await userEvent.click(start);
+    await waitFor(() => expect(calls('completion_action')).toHaveLength(1));
+    expect(calls('completion_action')[0]![1]).toEqual({ id: 7, action: 'startNext' });
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(calls('pomodoro_command')).toHaveLength(0); // the backend applies the start
+  });
+
+  it('dismisses with Esc without touching the timer', async () => {
+    await renderToast(focusDone());
+    await screen.findByRole('alertdialog');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(calls('completion_action')).toHaveLength(1));
+    expect(calls('completion_action')[0]![1]).toEqual({ id: 7, action: 'dismiss' });
+    expect(calls('pomodoro_command')).toHaveLength(0);
+  });
+
+  it('ignores a repeated event for the same completion and replaces it with a newer one', async () => {
+    await renderToast(null);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    emit('flip://completion', focusDone());
+    emit('flip://completion', focusDone());
+    expect(await screen.findAllByRole('alertdialog')).toHaveLength(1);
+    emit('flip://completion', breakDone());
+    expect(await screen.findByRole('alertdialog', { name: 'BREAK COMPLETE' })).toBeInTheDocument();
+    expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
+  });
+
+  it('leaves when the timer is changed elsewhere (event null)', async () => {
+    await renderToast(focusDone());
+    await screen.findByRole('alertdialog');
+    emit('flip://completion', null);
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+    expect(calls('completion_action')).toHaveLength(0);
+  });
+
+  it('with auto-start, says the next phase started and offers only DISMISS', async () => {
+    await renderToast(focusDone({ nextRunning: true }));
+    const card = await screen.findByRole('alertdialog', { name: 'FOCUS COMPLETE' });
+    expect(card).toHaveAccessibleDescription('SHORT BREAK · 05:00 · STARTED');
+    expect(within(card).getAllByRole('button')).toHaveLength(1);
+    expect(within(card).getByRole('button', { name: /DISMISS/ })).toHaveFocus();
+  });
+
+  it('a card waiting while the window was hidden appears when it loads (bootstrap)', async () => {
+    await renderToast(breakDone());
+    expect(await screen.findByRole('alertdialog', { name: 'BREAK COMPLETE' })).toBeInTheDocument();
+  });
+
+  it('the dashboard never renders the card', async () => {
+    invoke.mockImplementation(async (cmd: string) => (cmd === 'get_bootstrap' ? bootstrap({ completion: focusDone() }) : undefined));
+    render(<App surface="main" />);
+    await screen.findByRole('timer', { name: '12:43' });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('support link', () => {
+  it('opens the Buy Me a Coffee page through the backend', async () => {
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'Settings' });
+    await userEvent.click(screen.getByRole('button', { name: /Buy me a coffee/ }));
+    expect(invoke).toHaveBeenCalledWith('open_support_page');
+  });
+
+  it('timer-end settings: cards on, sound off by default', async () => {
+    const b = bootstrap({ panelView: 'settings:FOCUS' });
+    invoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) =>
+      cmd === 'get_bootstrap' ? b : cmd === 'update_settings' ? (args!.settings as Settings) : undefined,
+    );
+    render(<App surface="panel" />);
+    await screen.findByRole('dialog', { name: 'Settings' });
+    const sound = screen.getByRole('radiogroup', { name: 'Completion sound' });
+    expect(within(sound).getByRole('radio', { name: 'OFF' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(within(sound).getByRole('radio', { name: 'ON' }));
+    expect(lastSettings().notifications.sound).toBe(true);
   });
 });

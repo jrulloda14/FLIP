@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ClockFace } from '../components/ClockFace';
+import { CoffeeIcon } from '../components/CoffeeIcon';
 import { Head, OnOff, Row, Seg, Sheet } from '../components/controls';
 import { TEMPLATES, safeTemplate, shouldAnimate, useReducedMotion } from '../lib/clock';
 import { clockText, dateText } from '../lib/format';
@@ -228,7 +229,7 @@ function ClockTab({ s, set, clock, zones, systemZone }: { s: Settings; set: Upd;
           </>
         )}
         <Head>TIME ZONE</Head>
-        <Row label="HOME ZONE" hint="DIFF column is relative to this zone">
+        <Row label="HOME ZONE" hint="World clock DIFF counts from here">
           <select
             className="fl-select"
             aria-label="Home time zone"
@@ -466,12 +467,15 @@ function FocusTab({ s, set }: { s: Settings; set: Upd }) {
       <Row label="AUTO-START NEXT" hint="Start the next phase automatically">
         <OnOff value={f.autoStart} onChange={(v) => put({ autoStart: v })} label="Auto-start" />
       </Row>
-      <Head>NOTIFICATIONS</Head>
-      <Row label="FOCUS COMPLETE" hint="Windows notification">
-        <OnOff value={s.notifications.focusComplete} onChange={(v) => putN({ focusComplete: v })} label="Focus complete notification" />
+      <Head>WHEN A TIMER ENDS</Head>
+      <Row label="FOCUS COMPLETE" hint="A FLIP card in the corner of your screen, with START BREAK and DISMISS. It never takes focus from your app">
+        <OnOff value={s.notifications.focusComplete} onChange={(v) => putN({ focusComplete: v })} label="Focus complete card" />
       </Row>
-      <Row label="BREAK COMPLETE">
-        <OnOff value={s.notifications.breakComplete} onChange={(v) => putN({ breakComplete: v })} label="Break complete notification" />
+      <Row label="BREAK COMPLETE" hint="With RESUME FOCUS and DISMISS">
+        <OnOff value={s.notifications.breakComplete} onChange={(v) => putN({ breakComplete: v })} label="Break complete card" />
+      </Row>
+      <Row label="SOUND" hint="Plays your Windows notification sound with the card">
+        <OnOff value={s.notifications.sound} onChange={(v) => putN({ sound: v })} label="Completion sound" />
       </Row>
     </>
   );
@@ -902,6 +906,14 @@ export function SettingsWindow() {
       footer={
         <>
           <span className="fl-ink3 grow fl-small">CHANGES APPLY LIVE · SAVED TO {boot.platform.dataDir.toUpperCase()}\SETTINGS.JSON</span>
+          <button
+            className="fl-ctl fl-coffee"
+            onClick={() => void actions.openSupportPage()}
+            title="Support FLIP on Buy Me a Coffee (opens your browser)"
+            aria-label="Buy me a coffee (opens buymeacoffee.com in your browser)"
+          >
+            <CoffeeIcon /> BUY ME A COFFEE
+          </button>
           {state.error && (
             <button className="fl-ctl fl-warn" onClick={actions.dismissError}>
               ! {state.error}

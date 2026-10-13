@@ -6,7 +6,8 @@ import { AIUsageTable, usageColumns } from './AIUsageTable';
 import { PomodoroPanel } from './PomodoroPanel';
 import { aiIndicator } from './StatusBar';
 import { SystemMonitor } from './SystemMonitor';
-import { WorldClockTable } from './WorldClockTable';
+import { rowsOutside, WorldClockTable } from './WorldClockTable';
+import type { CityTime } from '../lib/types';
 import { DotMeter, matrixDots } from './primitives';
 
 const now = Date.parse('2026-10-06T04:43:00Z');
@@ -79,20 +80,37 @@ describe('AIUsageTable', () => {
 });
 
 describe('WorldClockTable', () => {
-  it('renders the board with diffs and day shifts', () => {
-    render(
-      <WorldClockTable
-        cities={[
-          { name: 'LONDON', code: 'LHR', tz: 'Europe/London', time: '05:43', diffMinutes: -420, diffLabel: '-7H', dayShift: 0, valid: true },
-          { name: 'AUCKLAND', code: 'AKL', tz: 'Pacific/Auckland', time: '03:30', diffMinutes: 240, diffLabel: '+4H', dayShift: 1, valid: true },
-          { name: 'BAD', code: 'X', tz: 'Nope/Nope', time: '--:--', diffMinutes: 0, diffLabel: '—', dayShift: 0, valid: false },
-        ]}
-      />,
-    );
+  const rows: CityTime[] = [
+    { name: 'LONDON', code: 'LHR', tz: 'Europe/London', time: '05:43', hour: 5, minute: 43, date: 'TUE 06', diffMinutes: -420, diffLabel: '-7H', dayShift: 0, valid: true },
+    { name: 'AUCKLAND', code: 'AKL', tz: 'Pacific/Auckland', time: '17:30', hour: 17, minute: 30, date: 'WED 07', diffMinutes: 240, diffLabel: '+4H', dayShift: 1, valid: true },
+    { name: 'BAD', code: 'X', tz: 'Nope/Nope', time: '--:--', hour: 0, minute: 0, date: '', diffMinutes: 0, diffLabel: '—', dayShift: 0, valid: false },
+  ];
+
+  it('renders the board with days, diffs and 24-hour times', () => {
+    render(<WorldClockTable cities={rows} h24 />);
     expect(screen.getByText('DESTINATION')).toBeInTheDocument();
+    expect(screen.getByText('DAY')).toBeInTheDocument();
     expect(screen.getByLabelText('-7H')).toBeInTheDocument();
-    expect(screen.getByText('+1')).toBeInTheDocument();
+    expect(screen.getByLabelText('17:30')).toBeInTheDocument();
     expect(screen.getByText('N/A')).toBeInTheDocument();
+  });
+
+  it('hides only whole rows that fall outside the space the layout gives it', () => {
+    const rect = (bottom: number, right = 500) => ({ bottom, right }) as DOMRect;
+    const box = rect(300);
+    expect(rowsOutside(box, [rect(100), rect(250), rect(300.5), rect(330), rect(360)])).toEqual([3, 4]);
+    expect(rowsOutside(box, [rect(100, 520)])).toEqual([0]); // too wide counts too
+    expect(rowsOutside(box, [])).toEqual([]);
+  });
+
+  it('follows the 12-hour setting and lights a different day', () => {
+    render(<WorldClockTable cities={rows} h24={false} />);
+    expect(screen.getByLabelText('5:43 AM')).toBeInTheDocument();
+    expect(screen.getByLabelText('5:30 PM')).toBeInTheDocument();
+    const wed = screen.getByLabelText('WED 07').closest('.fl-day')!;
+    expect(wed).toHaveClass('is-shift');
+    expect(wed).toHaveAttribute('title', 'Next day');
+    expect(screen.getByLabelText('TUE 06').closest('.fl-day')).not.toHaveClass('is-shift');
   });
 });
 

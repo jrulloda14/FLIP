@@ -28,7 +28,12 @@ pub struct CityTime {
     pub name: String,
     pub code: String,
     pub tz: String,
+    /// 24-hour "HH:MM". The UI reformats from `hour`/`minute` for 12-hour clocks.
     pub time: String,
+    pub hour: u32,
+    pub minute: u32,
+    /// Local weekday and day of month, e.g. "WED 14".
+    pub date: String,
     pub diff_minutes: i32,
     pub diff_label: String,
     pub day_shift: i32,
@@ -94,6 +99,9 @@ pub fn city_time(city: &City, home: Tz, at: DateTime<Utc>) -> CityTime {
             code: city.code.clone(),
             tz: city.tz.clone(),
             time: "--:--".into(),
+            hour: 0,
+            minute: 0,
+            date: String::new(),
             diff_minutes: 0,
             diff_label: "—".into(),
             day_shift: 0,
@@ -109,6 +117,9 @@ pub fn city_time(city: &City, home: Tz, at: DateTime<Utc>) -> CityTime {
         code: city.code.clone(),
         tz: city.tz.clone(),
         time: format!("{:02}:{:02}", local.hour(), local.minute()),
+        hour: local.hour(),
+        minute: local.minute(),
+        date: format!("{} {:02}", local.format("%a").to_string().to_uppercase(), local.day()),
         diff_minutes: diff,
         diff_label: diff_label(diff),
         day_shift,
@@ -168,6 +179,20 @@ mod tests {
         assert_eq!((dxb.time.as_str(), dxb.diff_label.as_str()), ("08:43", "-4H"));
         let mnl = city_time(&city("Asia/Manila"), home, t);
         assert_eq!(mnl.diff_label, "±0H");
+    }
+
+    #[test]
+    fn city_rows_carry_local_date_and_hour_for_12_hour_display() {
+        let t = at("2026-10-06T04:43:00Z");
+        let home: Tz = "Asia/Singapore".parse().unwrap();
+        let ny = city_time(&city("America/New_York"), home, t);
+        assert_eq!((ny.hour, ny.minute, ny.date.as_str(), ny.day_shift), (0, 43, "TUE 06", 0));
+        let hnl = city_time(&city("Pacific/Honolulu"), home, t);
+        assert_eq!((hnl.hour, hnl.date.as_str(), hnl.day_shift), (18, "MON 05", -1), "previous day");
+        let akl = city_time(&city("Pacific/Auckland"), home, t);
+        assert_eq!((akl.date.as_str(), akl.day_shift), ("TUE 06", 0));
+        let bad = city_time(&city("Nope/Nope"), home, t);
+        assert!(!bad.valid && bad.date.is_empty());
     }
 
     #[test]

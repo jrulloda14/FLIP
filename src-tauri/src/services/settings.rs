@@ -610,13 +610,17 @@ pub fn is_valid_shortcut(s: &str) -> bool {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct NotificationSettings {
+    /// Show the FOCUS COMPLETE card when a focus session ends.
     pub focus_complete: bool,
+    /// Show the BREAK COMPLETE card when a break ends.
     pub break_complete: bool,
+    /// Play the Windows notification sound with the card. Off by default.
+    pub sound: bool,
 }
 
 impl Default for NotificationSettings {
     fn default() -> Self {
-        Self { focus_complete: true, break_complete: true }
+        Self { focus_complete: true, break_complete: true, sound: false }
     }
 }
 
@@ -1362,5 +1366,13 @@ mod tests {
         assert_eq!(s.alerts.cpu_percent, 50);
         assert_eq!(s.alerts.disk_free_percent, 10);
         assert_eq!(s.alerts.cooldown_minutes, 1440);
+    }
+
+    #[test]
+    fn completion_sound_defaults_off_and_older_files_keep_their_choices() {
+        assert!(!Settings::default().notifications.sound);
+        // A 0.3.0 file has no `sound` key: it loads as off, and the other choices are kept.
+        let n: NotificationSettings = serde_json::from_str(r#"{"focusComplete":false,"breakComplete":true}"#).unwrap();
+        assert_eq!(n, NotificationSettings { focus_complete: false, break_complete: true, sound: false });
     }
 }

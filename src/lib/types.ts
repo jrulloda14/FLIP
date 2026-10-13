@@ -151,8 +151,12 @@ export interface ShortcutSettings {
 }
 
 export interface NotificationSettings {
+  /** Show the FOCUS COMPLETE card. */
   focusComplete: boolean;
+  /** Show the BREAK COMPLETE card. */
   breakComplete: boolean;
+  /** Play the Windows notification sound with the card. Off by default. */
+  sound: boolean;
 }
 
 /** Opt-in threshold notifications. FLIP only notifies; it never acts on the system. */
@@ -225,8 +229,12 @@ export interface CityTime {
   name: string;
   code: string;
   tz: string;
-  /** Always 24-hour, as on an airport board. */
+  /** 24-hour "HH:MM"; `hour`/`minute` let the UI follow the 12/24-hour setting. */
   time: string;
+  hour: number;
+  minute: number;
+  /** Local weekday and day of month, e.g. "WED 14". Empty when the zone is invalid. */
+  date: string;
   diffMinutes: number;
   diffLabel: string;
   /** -1, 0 or +1 day relative to home. */
@@ -320,6 +328,25 @@ export interface PomodoroView {
 
 export type PomodoroCommand = 'toggle' | 'start' | 'pause' | 'reset' | 'skip' | 'addFive';
 
+/** A timer phase ended. Shown once, as FLIP's completion card (never a Windows message box). */
+export interface CompletionNotice {
+  /** Unique per completion; actions name the id they answer. */
+  id: number;
+  /** The phase that ended. */
+  finished: Phase;
+  /** The phase the timer moved to. */
+  next: Phase;
+  nextMs: number;
+  /** The next phase already started (auto-start is on). */
+  nextRunning: boolean;
+  session: number;
+  sessions: number;
+  at: string;
+}
+
+/** `startNext` starts the phase the timer moved to; `dismiss` only closes the card. */
+export type CompletionAction = 'startNext' | 'dismiss';
+
 // ---------------------------------------------------------------- AI usage
 
 export type UsageStatus = 'ok' | 'stale' | 'loading' | 'unavailable' | 'error';
@@ -373,6 +400,8 @@ export interface Bootstrap {
   status: RuntimeStatus;
   /** Last view requested for the panel window. */
   panelView: string;
+  /** A completion card waiting to be answered. */
+  completion: CompletionNotice | null;
 }
 
 export interface DisplayInfo {

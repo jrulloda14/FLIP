@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-support-page"
+description = "Enables the open_support_page command without any pre-configured scope."
+commands.allow = ["open_support_page"]
+
+[[permission]]
+identifier = "deny-open-support-page"
+description = "Denies the open_support_page command without any pre-configured scope."
+commands.deny = ["open_support_page"]

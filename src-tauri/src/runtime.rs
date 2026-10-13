@@ -17,7 +17,8 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::commands::{self, EVT_CLOCK, EVT_POMODORO, EVT_SYSTEM};
 use crate::services::alerts::AlertEngine;
-use crate::services::pomodoro::{self, Completed, Phase};
+use crate::services::completion;
+use crate::services::pomodoro::{self, Completed};
 use crate::services::profiles;
 use crate::services::settings::{self, WindowLayer};
 use crate::services::system_monitor::SystemMonitor;
@@ -79,8 +80,10 @@ async fn clock_loop(app: AppHandle) {
             (c, t.view(Utc::now(), today, &cfg))
         };
         if let Some(c) = &completed {
-            notify_completed(&app, &state, c);
+            notify_completed(&app, &state, c, &view);
         }
+        // A card held back by a fullscreen app appears once it ends.
+        commands::show_completion_if_ready(&app, &state);
         if view.running || last_running || completed.is_some() {
             let _ = app.emit(EVT_POMODORO, &view);
             tray::sync_pomodoro(&app, &view);
@@ -136,25 +139,16 @@ async fn clock_loop(app: AppHandle) {
     log::info!("clock loop stopped");
 }
 
-fn notify_completed(app: &AppHandle, state: &AppState, c: &Completed) {
+/// Shows FLIP's own completion card (not a Windows toast). Called once per completed phase.
+fn notify_completed(app: &AppHandle, state: &AppState, c: &Completed, after: &pomodoro::View) {
     let n = state.settings().notifications.clone();
-    let (title, body, enabled) = match c.phase {
-        Phase::Focus => (
-            "Focus session complete",
-            match c.next {
-                Phase::LongBreak => "Time for a long break.".to_string(),
-                _ => "Time for a short break.".to_string(),
-            },
-            n.focus_complete,
-        ),
-        Phase::ShortBreak | Phase::LongBreak => ("Break over", "Ready for the next focus session.".to_string(), n.break_complete),
-        Phase::Idle => return,
-    };
-    if !enabled {
+    if !completion::wanted(c, &n) {
         return;
     }
-    if let Err(e) = app.notification().builder().title(title).body(body).show() {
-        log::warn!("notification failed: {e}");
+    let notice = lock(&state.completions).push(c, after, Utc::now());
+    let _ = app.emit(commands::EVT_COMPLETION, Some(&notice));
+    if n.sound {
+        completion::play_sound();
     }
 }
 

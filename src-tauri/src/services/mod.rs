@@ -1,5 +1,6 @@
 pub mod ai_usage;
 pub mod alerts;
+pub mod completion;
 pub mod desktop_layer;
 pub mod gpu;
 pub mod pomodoro;

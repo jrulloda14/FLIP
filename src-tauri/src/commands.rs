@@ -10,6 +10,7 @@ use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::error::{AppError, AppResult};
 use crate::services::ai_usage::{self, UsageSnapshot};
+use crate::services::completion::{CompletionAction, CompletionNotice};
 use crate::services::pomodoro::{self, Command, View};
 use crate::services::profiles::{self, Profile};
 use crate::services::settings::{
@@ -28,6 +29,8 @@ pub const EVT_AI: &str = "flip://ai";
 pub const EVT_SETTINGS: &str = "flip://settings";
 pub const EVT_STATUS: &str = "flip://status";
 pub const EVT_PANEL: &str = "flip://panel";
+/// Timer-completion card: the pending notice, or null when it is answered or cleared.
+pub const EVT_COMPLETION: &str = "flip://completion";
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -63,6 +66,8 @@ pub struct Bootstrap {
     system_time_zone: String,
     status: RuntimeStatus,
     panel_view: String,
+    /// A timer-completion card waiting to be answered (for a window that loads late).
+    completion: Option<CompletionNotice>,
 }
 
 pub fn clock_snapshot(state: &AppState) -> ClockSnapshot {
@@ -120,6 +125,7 @@ pub fn get_bootstrap(app: AppHandle, state: State<'_, AppState>) -> AppResult<Bo
         system_time_zone: world_clock::system_time_zone(),
         status: runtime_status(&app),
         panel_view: lock(&state.panel_view).clone(),
+        completion: lock(&state.completions).pending().cloned(),
     })
 }
 
@@ -280,6 +286,8 @@ pub fn apply_region(app: AppHandle, state: State<'_, AppState>, region: Region) 
 }
 
 pub fn apply_pomodoro(app: &AppHandle, state: &AppState, cmd: Command) -> View {
+    // Changing the timer from anywhere answers an open completion card.
+    clear_completion(app, state);
     let cfg = state.settings().focus.clone();
     let today = state.today();
     let view = {
@@ -293,6 +301,78 @@ pub fn apply_pomodoro(app: &AppHandle, state: &AppState, cmd: Command) -> View {
     tray::sync_pomodoro(app, &view);
     let _ = app.emit(EVT_POMODORO, &view);
     view
+}
+
+/// The project's support page. The only web address FLIP ever opens, and only on a click.
+pub const SUPPORT_URL: &str = "https://buymeacoffee.com/flipdashboard";
+
+/// Opens the Buy Me a Coffee page in the default browser. Takes no arguments, so the
+/// webview cannot use it to open anything else.
+#[tauri::command]
+pub fn open_support_page() -> AppResult<()> {
+    #[cfg(windows)]
+    {
+        use windows::core::{w, HSTRING};
+        use windows::Win32::UI::Shell::ShellExecuteW;
+        use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        let r = unsafe { ShellExecuteW(None, w!("open"), &HSTRING::from(SUPPORT_URL), None, None, SW_SHOWNORMAL) };
+        // ShellExecuteW reports success with a value greater than 32.
+        if r.0 as isize <= 32 {
+            return Err(AppError::Invalid("could not open the browser".into()));
+        }
+    }
+    Ok(())
+}
+
+/// Shows the completion card's window unless a fullscreen app or presentation is running
+/// (then it waits; the clock loop retries every second).
+pub fn show_completion_if_ready(app: &AppHandle, state: &AppState) {
+    use std::sync::atomic::Ordering;
+    if lock(&state.completions).pending().is_none() || state.toast_visible.load(Ordering::SeqCst) {
+        return;
+    }
+    if desktop_layer::is_fullscreen_app_running() {
+        return;
+    }
+    state.toast_visible.store(true, Ordering::SeqCst);
+    window::show_toast(app);
+}
+
+fn hide_completion_window(app: &AppHandle, state: &AppState) {
+    state.toast_visible.store(false, std::sync::atomic::Ordering::SeqCst);
+    window::hide_toast(app);
+}
+
+/// Removes an open completion card that the user answered some other way (tray, shortcut,
+/// dashboard). The card animates out before its window hides.
+pub fn clear_completion(app: &AppHandle, state: &AppState) {
+    if !lock(&state.completions).clear() {
+        return;
+    }
+    let _ = app.emit(EVT_COMPLETION, None::<CompletionNotice>);
+    let app = app.clone();
+    let _ = std::thread::Builder::new().name("flip-toast-hide".into()).spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(260));
+        let state = app.state::<AppState>();
+        if lock(&state.completions).pending().is_none() {
+            hide_completion_window(&app, &state);
+        }
+    });
+}
+
+/// Answers the completion card `id`. `startNext` starts the phase the timer already moved to;
+/// `dismiss` only closes the card. A stale or repeated id does nothing.
+#[tauri::command]
+pub fn completion_action(app: AppHandle, state: State<'_, AppState>, id: u64, action: CompletionAction) -> View {
+    let resolved = lock(&state.completions).resolve(id);
+    if resolved {
+        let _ = app.emit(EVT_COMPLETION, None::<CompletionNotice>);
+        hide_completion_window(&app, &state);
+        if action == CompletionAction::StartNext {
+            return apply_pomodoro(&app, &state, Command::Start);
+        }
+    }
+    pomodoro_view(&state)
 }
 
 #[tauri::command]
