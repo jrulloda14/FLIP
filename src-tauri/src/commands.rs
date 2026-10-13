@@ -338,7 +338,7 @@ pub fn show_completion_if_ready(app: &AppHandle, state: &AppState) {
     window::show_toast(app);
 }
 
-fn hide_completion_window(app: &AppHandle, state: &AppState) {
+pub fn hide_completion_window(app: &AppHandle, state: &AppState) {
     state.toast_visible.store(false, std::sync::atomic::Ordering::SeqCst);
     window::hide_toast(app);
 }

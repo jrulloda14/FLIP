@@ -57,7 +57,9 @@ pub fn layer_code(l: WindowLayer) -> u8 {
 }
 
 #[cfg(windows)]
-pub use imp::{apply_layer, desktop_solid_color, install, is_fullscreen_app_running, set_top_suppressed, show_without_focus, stop};
+pub use imp::{
+    apply_layer, desktop_solid_color, hide_window, install, is_fullscreen_app_running, set_top_suppressed, show_at_without_focus, stop,
+};
 
 #[cfg(not(windows))]
 mod fallback {
@@ -70,9 +72,14 @@ mod fallback {
         false
     }
     pub fn set_top_suppressed<R: tauri::Runtime>(_w: &tauri::WebviewWindow<R>, _s: bool) {}
-    pub fn show_without_focus<R: tauri::Runtime>(w: &tauri::WebviewWindow<R>) {
+    pub fn show_at_without_focus<R: tauri::Runtime>(w: &tauri::WebviewWindow<R>, x: i64, y: i64, width: i64, height: i64) {
+        let _ = w.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+        let _ = w.set_size(tauri::PhysicalSize::new(width as u32, height as u32));
         let _ = w.show();
         let _ = w.set_always_on_top(true);
+    }
+    pub fn hide_window<R: tauri::Runtime>(w: &tauri::WebviewWindow<R>) {
+        let _ = w.hide();
     }
     pub fn desktop_solid_color() -> Option<String> {
         None
@@ -80,7 +87,9 @@ mod fallback {
     pub fn stop() {}
 }
 #[cfg(not(windows))]
-pub use fallback::{apply_layer, desktop_solid_color, install, is_fullscreen_app_running, set_top_suppressed, show_without_focus, stop};
+pub use fallback::{
+    apply_layer, desktop_solid_color, hide_window, install, is_fullscreen_app_running, set_top_suppressed, show_at_without_focus, stop,
+};
 
 #[cfg(windows)]
 mod imp {
@@ -93,8 +102,8 @@ mod imp {
     use windows::Win32::UI::Shell::{DefSubclassProc, SHQueryUserNotificationState, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
         GetClassNameW, GetForegroundWindow, GetWindow, GetWindowLongPtrW, GetWindowThreadProcessId, SetWindowLongPtrW, SetWindowPos,
-        ShowWindow, SystemParametersInfoW, EVENT_SYSTEM_FOREGROUND, GWL_EXSTYLE, GW_HWNDPREV, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST,
-        SPI_GETDESKWALLPAPER, STYLESTRUCT, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_SHOWNOACTIVATE,
+        SystemParametersInfoW, EVENT_SYSTEM_FOREGROUND, GWL_EXSTYLE, GW_HWNDPREV, HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST,
+        SPI_GETDESKWALLPAPER, STYLESTRUCT, SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW,
         SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WINDOWPOS, WINEVENT_OUTOFCONTEXT, WM_STYLECHANGING, WM_WINDOWPOSCHANGING, WS_EX_APPWINDOW,
         WS_EX_TOOLWINDOW,
     };
@@ -287,17 +296,26 @@ mod imp {
         unsafe { SHQueryUserNotificationState() }.map(|s| super::fullscreen_busy(s.0)).unwrap_or(false)
     }
 
-    /// Shows a window above other windows without activating it, so the app the user is
-    /// typing in keeps keyboard focus. Clicking the window activates it as usual.
-    pub fn show_without_focus<R: Runtime>(w: &WebviewWindow<R>) {
-        let Ok(hwnd) = w.hwnd() else {
-            let _ = w.show();
-            return;
-        };
+    /// Moves, sizes and shows a window above other windows in one step, without activating it,
+    /// so the app the user is typing in keeps keyboard focus. Clicking it activates it as usual.
+    ///
+    /// Only for windows that the windowing layer already considers visible (created visible)
+    /// and that are shown and hidden exclusively through this function and `hide_window`.
+    /// Mixing these with Tauri's show/hide would leave its state out of step with the window.
+    pub fn show_at_without_focus<R: Runtime>(w: &WebviewWindow<R>, x: i64, y: i64, width: i64, height: i64) {
+        let Ok(hwnd) = w.hwnd() else { return };
         unsafe {
-            let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+            let _ =
+                SetWindowPos(hwnd, Some(HWND_TOPMOST), x as i32, y as i32, width as i32, height as i32, SWP_NOACTIVATE | SWP_SHOWWINDOW);
         }
-        set_z(hwnd, HWND_TOPMOST);
+    }
+
+    /// Hides a window shown by `show_at_without_focus` and drops it out of the topmost band.
+    pub fn hide_window<R: Runtime>(w: &WebviewWindow<R>) {
+        let Ok(hwnd) = w.hwnd() else { return };
+        unsafe {
+            let _ = SetWindowPos(hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_HIDEWINDOW);
+        }
     }
 
     /// In the Top layer, steps aside for fullscreen apps and returns afterwards.

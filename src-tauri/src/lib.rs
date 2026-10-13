@@ -115,6 +115,12 @@ pub fn run() {
                         // The panel is reused; never destroy it.
                         api.prevent_close();
                         window::close_panel(app);
+                    } else if w.label() == window::TOAST {
+                        // Closing the completion card (Alt+F4) dismisses it. It never touches the
+                        // dashboard and the window is reused.
+                        api.prevent_close();
+                        commands::clear_completion(app, &state);
+                        commands::hide_completion_window(app, &state);
                     } else if state.settings().window.close_to_tray {
                         api.prevent_close();
                         window::hide(app);

@@ -2,7 +2,7 @@
 
 All notable changes to FLIP. Versions follow [Semantic Versioning](https://semver.org/).
 
-## [0.4.0] - Unreleased (draft)
+## [0.4.0] - 2026-10-13
 
 ### Added
 
@@ -18,6 +18,7 @@ All notable changes to FLIP. Versions follow [Semantic Versioning](https://semve
 
 ### Fixed
 
+- The completion card window always closes when dismissed, never shows a blank page or a title bar, and closing it (✕ or Alt+F4) no longer hides the dashboard.
 - The world clock no longer runs into the bottom status strip when there are more cities than fit (e.g. the Clock preset with eight cities). Rows that don't fit are hidden whole, and the header shows how many (+2).
 - Settings rows with a wide control (such as the home time zone) no longer squeeze their hint into one word per line.
 
@@ -89,7 +90,7 @@ First public release.
 - Tray menu, editable system-wide shortcuts, settings panel, launch on startup.
 - Per-user NSIS installer; no administrator rights.
 
-[0.4.0]: https://github.com/jrulloda14/FLIP/compare/v0.3.0...HEAD
+[0.4.0]: https://github.com/jrulloda14/FLIP/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/jrulloda14/FLIP/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/jrulloda14/FLIP/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jrulloda14/FLIP/releases/tag/v0.1.0

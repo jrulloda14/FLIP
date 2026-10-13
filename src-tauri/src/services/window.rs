@@ -452,20 +452,28 @@ pub fn open_panel<R: Runtime>(app: &AppHandle<R>, view: &str) {
 
 // ------------------------------------------------------------------ completion card window
 
+/// The card window is created *shown* (off-screen, without focus) so Tauri and WebView2 treat
+/// it as visible and keep its page rendering, then hidden straight away. From then on it is
+/// shown and hidden only with `desktop_layer::show_at_without_focus` / `hide_window`, which do
+/// not activate it; Tauri's own show/hide would take focus from the user's app.
 pub fn create_toast<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
     let w = WebviewWindowBuilder::new(app, TOAST, WebviewUrl::App("index.html?view=toast".into()))
         .title("FLIP")
         .decorations(false)
         .resizable(false)
-        .visible(false)
+        .maximizable(false)
+        .minimizable(false)
+        .visible(true)
         .focused(false)
         .skip_taskbar(true)
         .shadow(false)
+        .position(-32000.0, -32000.0)
         .inner_size(TOAST_SIZE.0, TOAST_SIZE.1)
         .background_color(tauri::window::Color(11, 11, 11, 255))
         .theme(Some(tauri::Theme::Dark))
         .build()?;
     desktop_layer::install(&w, false);
+    desktop_layer::hide_window(&w);
     Ok(w)
 }
 
@@ -485,20 +493,17 @@ pub fn show_toast<R: Runtime>(app: &AppHandle<R>) {
         .filter(|m| m.is_visible().unwrap_or(false))
         .and_then(|m| m.current_monitor().ok().flatten())
         .or_else(|| t.primary_monitor().ok().flatten());
-    if let Some(m) = monitor {
-        let a = m.work_area();
-        let s = m.scale_factor();
-        let work = Rect { x: a.position.x as i64, y: a.position.y as i64, w: a.size.width as i64, h: a.size.height as i64 };
-        let r = toast_rect(&work, (TOAST_SIZE.0 * s) as i64, (TOAST_SIZE.1 * s) as i64, (REGION_MARGIN * s) as i64);
-        set_rect(&t, r);
-    }
-    desktop_layer::show_without_focus(&t);
+    let Some(m) = monitor else { return };
+    let a = m.work_area();
+    let s = m.scale_factor();
+    let work = Rect { x: a.position.x as i64, y: a.position.y as i64, w: a.size.width as i64, h: a.size.height as i64 };
+    let r = toast_rect(&work, (TOAST_SIZE.0 * s) as i64, (TOAST_SIZE.1 * s) as i64, (REGION_MARGIN * s) as i64);
+    desktop_layer::show_at_without_focus(&t, r.x, r.y, r.w, r.h);
 }
 
 pub fn hide_toast<R: Runtime>(app: &AppHandle<R>) {
     if let Some(t) = app.get_webview_window(TOAST) {
-        let _ = t.set_always_on_top(false);
-        let _ = t.hide();
+        desktop_layer::hide_window(&t);
     }
 }
 
